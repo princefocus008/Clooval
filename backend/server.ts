@@ -231,17 +231,23 @@ async function logActivity(
 
   // If the log is for a student, add an Admin notification to alert the admin of this activity
   if (userId !== "admin-1") {
-    const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
-    await client.query(
-      `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [adminNotifId, "admin-1", `${action} - ${userName}`, details, false, requestId || null]
-    );
-    
-    // Send push notification to admin asynchronously
-    sendPushNotification("admin-1", `${action} - ${userName}`, details, requestId).catch(err =>
-      console.error("Failed to send push notification:", err.message)
-    );
+    // Only create an admin notification if the admin user actually exists
+    const adminCheck = await client.query("SELECT id FROM users WHERE id = $1", ["admin-1"]);
+    if (adminCheck.rows.length === 0) {
+      console.warn("Admin user 'admin-1' not found; skipping admin notification.");
+    } else {
+      const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
+      await client.query(
+        `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [adminNotifId, "admin-1", `${action} - ${userName}`, details, false, requestId || null]
+      );
+
+      // Send push notification to admin asynchronously
+      sendPushNotification("admin-1", `${action} - ${userName}`, details, requestId).catch(err =>
+        console.error("Failed to send push notification:", err.message)
+      );
+    }
   }
 }
 
