@@ -8,7 +8,9 @@ import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
+// Vite is only used during local development. We avoid a static import
+// so production bundles don't include Vite and its path-logic (which
+// can break when bundled). When running in dev, load Vite at runtime.
 import { Request, Provider, Notification, User, RequestStatus, PriorityLevel, RequestCategory, ActivityLog } from "../frontend/src/types";
 
 // Load environment variables from .env
@@ -334,7 +336,7 @@ async function startServer() {
         ? jwt.sign({ id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role }, JWT_SECRET, { expiresIn: '7d' })
         : Buffer.from(JSON.stringify(newUser)).toString("base64");
       res.status(201).json({ user: newUser, token });
-    } catch (err: any) {
+    } catch (err: any) { 
       await client.query("ROLLBACK");
       console.error("Registration error:", err);
       res.status(500).json({ error: "Internal server error during registration: " + err.message });
@@ -1572,12 +1574,17 @@ async function startServer() {
 
   // Vite development vs production asset server
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      root: frontendRoot,
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      const createViteServer = eval("require")("vite").createServer;
+      const vite = await createViteServer({
+        root: frontendRoot,
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err: any) {
+      console.warn("Vite dev server not available; continuing without it:", err && err.message ? err.message : err);
+    }
   } else {
     const distPath = path.join(process.cwd(), "dist-frontend");
     app.use(express.static(distPath));
