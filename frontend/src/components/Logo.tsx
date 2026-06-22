@@ -1,40 +1,43 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 interface LogoProps {
   className?: string;
   iconOnly?: boolean;
   size?: "small" | "medium" | "large";
+  to?: string;
 }
 
 const SIZE_MAP = {
   small: {
-    icon: "w-9 h-8",
-    largeChar: "text-[42px]",
-    smallChars: "text-[24px]",
-    subText: "text-[7px]",
-    lineWidth: "w-[80px]",
+    icon: "w-10 h-9",
+    largeChar: "text-[46px]",
+    smallChars: "text-[26px]",
+    subText: "text-[8px]",
+    lineWidth: "w-[85px]",
   },
   medium: {
-    icon: "w-12 h-10",
-    largeChar: "text-[58px]",
-    smallChars: "text-[32px]",
-    subText: "text-[7.5px]",
-    lineWidth: "w-[100px]",
+    icon: "w-14 h-12",
+    largeChar: "text-[64px]",
+    smallChars: "text-[34px]",
+    subText: "text-[8.5px]",
+    lineWidth: "w-[98px]",
   },
   large: {
-    icon: "w-14 h-12",
-    largeChar: "text-[68px]",
-    smallChars: "text-[36px]",
-    subText: "text-[8.5px]",
+    icon: "w-16 h-14",
+    largeChar: "text-[72px]",
+    smallChars: "text-[38px]",
+    subText: "text-[9px]",
     lineWidth: "w-[110px]",
   },
 };
 
-export default function Logo({ className = "", iconOnly = false, size = "medium" }: LogoProps) {
+export default function Logo({ className = "", iconOnly = false, size = "medium", to }: LogoProps) {
   const styles = SIZE_MAP[size];
+  const rootClass = `flex items-center gap-2 select-none ${className}`;
 
-  return (
-    <div className={`flex items-center gap-0 select-none ${className}`}>
+  const content = (
+    <>
       <div className="shrink-0 flex items-center">
         <svg
           viewBox="0 0 46 40"
@@ -54,10 +57,10 @@ export default function Logo({ className = "", iconOnly = false, size = "medium"
       </div>
 
       {!iconOnly && (
-        <div className="flex flex-col text-left -ml-[16px] mt-[2px]">
+        <div className="flex flex-col text-left ml-2 mt-[2px]">
           <div className="flex items-baseline leading-none font-serif tracking-[-0.07em]">
             <span className={`${styles.largeChar} font-normal text-[#111111] leading-[0.65] select-none`}>C</span>
-            <span className={`${styles.smallChars} font-normal text-[#111111] -ml-[6px] select-none leading-none`}>loova</span>
+            <span className={`${styles.smallChars} font-normal text-[#111111] select-none leading-none`}>loova</span>
           </div>
           <div className="flex flex-col mt-[4px] items-start ml-[11px]">
             <span className={`${styles.subText} font-bold text-[#333333] uppercase tracking-[0.24em] leading-none select-none`}>
@@ -67,6 +70,16 @@ export default function Logo({ className = "", iconOnly = false, size = "medium"
           </div>
         </div>
       )}
+    </>
+  );
+
+  return to ? (
+    <Link to={to} className={rootClass}>
+      {content}
+    </Link>
+  ) : (
+    <div className={rootClass}>
+      {content}
     </div>
   );
 }

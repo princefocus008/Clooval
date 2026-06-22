@@ -202,7 +202,7 @@ export default function AdminLayout() {
         
         {/* TOP BRANDING UNIT */}
         <div className="p-4 h-18 flex items-center border-b border-[#E5E5E3]">
-          <Logo />
+          <Logo to="/" className="-ml-1" />
         </div>
         
         {/* NAVIGATION SYSTEM */}
@@ -263,7 +263,7 @@ export default function AdminLayout() {
       {/* MOBILE BAR */}
       <header className="md:hidden h-16 bg-white border-b border-[#E5E5E3] px-6 flex items-center justify-between sticky top-0 z-30">
         <span className="font-bold text-sm tracking-tight flex items-center gap-4 text-black">
-          <Logo iconOnly /> Admin Console
+          <Logo iconOnly to="/" className="-ml-1" /> Admin Console
         </span>
 
         {/* Small floating navigation bar */}

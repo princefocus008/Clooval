@@ -7,11 +7,11 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore, useToastStore } from "../../lib/store";
 import { api } from "../../lib/api";
 import { saveLocalUser, syncLocalStorageWithServer } from "../../lib/sync";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronLeft } from "lucide-react";
 import loginBg from "../../assets/images/alu_campus_bg_1780756884172.jpg";
 import Logo from "../../components/Logo";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
@@ -149,9 +149,15 @@ export default function AuthScreen() {
       {/* LEFT COLUMN: THE AUTHENTICATION FORM */}
       <div className="flex flex-col justify-center items-center px-6 sm:px-12 md:px-16 lg:px-24 py-10 relative z-10">
         <div className={`w-full ${isLogin ? "max-w-[390px]" : "max-w-[480px]"} flex flex-col transition-all duration-300`}>
-          
+          <Link
+            to="/"
+            className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#111111] hover:text-[#333333]"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back
+          </Link>
           {/* LOGO: Beautiful, modern geometric component brand mark */}
-          <Logo className="mb-8" />
+          <Logo className="mb-8" to="/" />
 
           <h1 id="auth-title" className="text-3xl font-black tracking-tight text-[#111111] mb-2 font-sans select-none">
             {isLogin ? "WELCOME BACK" : "JOIN CLOOVA"}
