@@ -91,12 +91,15 @@ export default function AuthScreen() {
       const res = await api.post("/auth/login", data);
       login(res.data.user, res.data.token);
       addToast(`Welcome back, ${res.data.user.name}!`, "success");
+      // allow toast + micro-animation to be perceived, then navigate
       setLoading(false);
-      if (res.data.user.role === "admin") {
-        navigate("/admin", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
+      setTimeout(() => {
+        if (res.data.user.role === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/app", { replace: true });
+        }
+      }, 180);
     } catch (err: any) {
       setLoading(false);
       const msg = err.response?.data?.error || "Incorrect login email or password";
@@ -115,12 +118,15 @@ export default function AuthScreen() {
       
       login(res.data.user, res.data.token);
       addToast("Account created successfully. Welcome to Cloova!", "success");
+      // allow toast + micro-animation to be perceived, then navigate
       setLoading(false);
-      if (res.data.user.role === "admin") {
-        navigate("/admin", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
+      setTimeout(() => {
+        if (res.data.user.role === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/app", { replace: true });
+        }
+      }, 180);
     } catch (err: any) {
       setLoading(false);
       const msg = err.response?.data?.error || "Registration failed. Try again.";

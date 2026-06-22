@@ -73,19 +73,21 @@ export default function StudentLayout() {
   };
 
   if (!isAuthenticated && !localStorage.getItem("cl_token")) {
-    return <Navigate to="/login" replace />;
+      return <Navigate to="/login" replace />;
   }
 
   // Double check admin role. If logged in as admin, they should go to /admin
   if (user && user.role === "admin") {
-    return <Navigate to="/admin" replace />;
+      return <Navigate to="/admin" replace />;
   }
 
+    // Use relative paths under the student base `/app` so links resolve correctly
+    const basePath = "/app";
   const navItems = [
-    { label: "Home", path: "/", icon: Home },
-    { label: "My Requests", path: "/requests", icon: ClipboardList },
-    { label: "Notifications", path: "/notifications", icon: Bell, badge: unreadCount },
-    { label: "Profile", path: "/profile", icon: UserIcon },
+      { label: "Home", path: "", icon: Home },
+      { label: "My Requests", path: "requests", icon: ClipboardList },
+      { label: "Notifications", path: "notifications", icon: Bell, badge: unreadCount },
+      { label: "Profile", path: "profile", icon: UserIcon },
   ];
 
   return (
@@ -94,11 +96,12 @@ export default function StudentLayout() {
       {/* DESKTOP SIDEBAR NAVIGATION */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-[#E5E5E3] h-screen sticky top-0 shrink-0">
         <div className="p-6 h-16 flex items-center border-b border-[#E5E5E3]">
-          <Logo to="/" className="-ml-1" />
+            <Logo to="/app" className="-ml-1" />
         </div>
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
+              const fullPath = `${basePath}${item.path ? `/${item.path}` : ""}`;
+              const isActive = location.pathname === fullPath || location.pathname.startsWith(fullPath + "/");
             const Icon = item.icon;
             return (
               <Link
@@ -161,7 +164,7 @@ export default function StudentLayout() {
         <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-[#E5E5E3] px-4 md:px-8 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
             <div className="md:hidden">
-              <Logo iconOnly to="/" className="-ml-1" />
+                <Logo iconOnly to="/app" className="-ml-1" />
             </div>
             <div className="hidden md:block">
               <span className="text-xs font-bold font-mono text-[#999999] uppercase tracking-wider">Cloova Services</span>
@@ -169,7 +172,7 @@ export default function StudentLayout() {
           </div>
 
           <div className="flex-1 max-w-sm">
-            {location.pathname === "/requests" && <GlobalSearch />}
+            {location.pathname.startsWith(`${basePath}/requests`) && <GlobalSearch />}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -223,7 +226,8 @@ export default function StudentLayout() {
         aria-label="Mobile menu"
       >
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+            const fullPath = `${basePath}${item.path ? `/${item.path}` : ""}`;
+            const isActive = location.pathname === fullPath || location.pathname.startsWith(fullPath + "/");
           const Icon = item.icon;
           return (
             <Link

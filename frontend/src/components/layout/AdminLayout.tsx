@@ -202,7 +202,7 @@ export default function AdminLayout() {
         
         {/* TOP BRANDING UNIT */}
         <div className="p-4 h-18 flex items-center border-b border-[#E5E5E3]">
-          <Logo to="/" className="-ml-1" />
+          <Logo to="/admin" className="-ml-1" />
         </div>
         
         {/* NAVIGATION SYSTEM */}
