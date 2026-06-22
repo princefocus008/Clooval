@@ -856,19 +856,24 @@ async function startServer() {
       } else {
         await logActivity(client, user.id, user.name, user.email, "Create Request", `Submitted ${category} repair request (#${uniqueId}).`, uniqueId);
         
-        // Trigger Admin notification
-        const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
-        await client.query(
-          `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
-           VALUES ($1, $2, $3, $4, false, $5, NOW())`,
-          [
-            adminNotifId,
-            "admin-1",
-            "New Job Request Submitted",
-            `Student ${user.name} submitted an item for ${category} repair. (#${uniqueId})`,
-            uniqueId
-          ]
-        );
+        // Trigger Admin notification only if admin user exists
+        const adminCheck = await client.query("SELECT id FROM users WHERE id = $1", ["admin-1"]);
+        if (adminCheck.rows.length > 0) {
+          const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
+          await client.query(
+            `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
+             VALUES ($1, $2, $3, $4, false, $5, NOW())`,
+            [
+              adminNotifId,
+              "admin-1",
+              "New Job Request Submitted",
+              `Student ${user.name} submitted an item for ${category} repair. (#${uniqueId})`,
+              uniqueId
+            ]
+          );
+        } else {
+          console.warn("Admin user 'admin-1' not found; skipping admin notification for new request.");
+        }
       }
 
       await client.query("COMMIT");
