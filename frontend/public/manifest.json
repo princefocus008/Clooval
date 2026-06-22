@@ -10,22 +10,16 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/assets/images/logo.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/assets/images/logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any"
     }
   ],
   "screenshots": [
     {
-      "src": "/assets/images/logo.png",
-      "sizes": "1280x720",
+      "src": "/favicon.svg",
+      "sizes": "any",
       "form_factor": "wide"
     }
   ],
@@ -35,10 +29,10 @@
       "short_name": "Requests",
       "description": "View your service requests",
       "url": "/requests?utm_source=shortcut",
-      "icons": [
+          "icons": [
         {
-          "src": "/assets/images/logo.png",
-          "sizes": "96x96"
+          "src": "/favicon.svg",
+          "sizes": "any"
         }
       ]
     },
@@ -47,10 +41,10 @@
       "short_name": "New",
       "description": "Create a new service request",
       "url": "/requests/new?utm_source=shortcut",
-      "icons": [
+          "icons": [
         {
-          "src": "/assets/images/logo.png",
-          "sizes": "96x96"
+          "src": "/favicon.svg",
+          "sizes": "any"
         }
       ]
     }
