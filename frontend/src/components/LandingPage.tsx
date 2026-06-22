@@ -51,7 +51,7 @@ export default function LandingPage() {
                 Your items. Fixed.
               </h1>
               <p className="mt-6 max-w-[480px] text-[18px] leading-[1.6] text-white/75 sm:text-[18px]">
-                Submit a repair request from your room. We handle the rest, no trips to Port Louis required.
+                Submit a repair request from your room. We handle the rest, no trips required.
               </p>
               <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <button
