@@ -138,7 +138,7 @@ export default function LandingPage() {
                 {
                   number: "STEP 02",
                   title: "We review and scout",
-                  description: "The team reviews your request and contacts vetted providers in Port Louis on your behalf — in French or Creole.",
+                  description: "The team reviews your request and contacts vetted providers in Port Louis on your behalf, in French or Creole.",
                 },
                 {
                   number: "STEP 03",
