@@ -53,7 +53,7 @@ export default function MyRequests() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate("/requests/new/select")}
+            onClick={() => navigate("/app/requests/new/select")}
             className="px-4 py-2 bg-[#111111] text-white text-sm font-semibold rounded-lg hover:bg-[#333333] transition"
           >
             New Request

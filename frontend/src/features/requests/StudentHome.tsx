@@ -71,7 +71,7 @@ export default function StudentHome() {
         </div>
 
         <Link
-          to="/requests/new/select"
+          to="/app/requests/new/select"
           className="w-full sm:w-auto h-10 px-5 bg-[#111111] hover:bg-[#333333] text-white font-medium rounded-lg text-sm transition flex items-center justify-center gap-2"
           id="new-request-btn"
         >
@@ -88,7 +88,7 @@ export default function StudentHome() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 pb-6 border-b border-[#E5E5E3]">
           <button
             key="phone"
-            onClick={() => navigate("/requests/new/phone")}
+            onClick={() => navigate("/app/requests/new/phone")}
             className="flex items-center gap-4 py-3 text-left w-full hover:bg-[#FAF9F7] transition cursor-pointer select-none"
           >
             <div className="w-10 h-10 rounded-lg bg-[#F1F2E9] flex items-center justify-center shrink-0">
@@ -102,7 +102,7 @@ export default function StudentHome() {
 
           <button
             key="laptop"
-            onClick={() => navigate("/requests/new/laptop")}
+            onClick={() => navigate("/app/requests/new/laptop")}
             className="flex items-center gap-4 py-3 text-left w-full hover:bg-[#FAF9F7] transition cursor-pointer select-none"
           >
             <div className="w-10 h-10 rounded-lg bg-[#F1F2E9] flex items-center justify-center shrink-0">
@@ -116,7 +116,7 @@ export default function StudentHome() {
 
           <button
             key="clothing"
-            onClick={() => navigate("/requests/new/clothing")}
+            onClick={() => navigate("/app/requests/new/clothing")}
             className="flex items-center gap-4 py-3 text-left w-full hover:bg-[#FAF9F7] transition cursor-pointer select-none"
           >
             <div className="w-10 h-10 rounded-lg bg-[#F1F2E9] flex items-center justify-center shrink-0">
@@ -130,7 +130,7 @@ export default function StudentHome() {
 
           <button
             key="shoe"
-            onClick={() => navigate("/requests/new/shoe")}
+            onClick={() => navigate("/app/requests/new/shoe")}
             className="flex items-center gap-4 py-3 text-left w-full hover:bg-[#F7F7F5] transition cursor-pointer select-none"
           >
             <div className="w-10 h-10 rounded-lg bg-[#F1F2E9] flex items-center justify-center shrink-0">
@@ -144,7 +144,7 @@ export default function StudentHome() {
 
           <button
             key="accessories"
-            onClick={() => navigate("/requests/new/accessories")}
+            onClick={() => navigate("/app/requests/new/accessories")}
             className="flex items-center gap-4 py-3 text-left w-full hover:bg-[#F7F7F5] transition cursor-pointer select-none"
           >
             <div className="w-10 h-10 rounded-lg bg-[#F1F2E9] flex items-center justify-center shrink-0">
@@ -158,7 +158,7 @@ export default function StudentHome() {
 
           <button
             key="other"
-            onClick={() => navigate("/requests/new/other")}
+            onClick={() => navigate("/app/requests/new/other")}
             className="flex items-center gap-4 py-3 text-left w-full hover:bg-[#F7F7F5] transition cursor-pointer select-none"
           >
             <div className="w-10 h-10 rounded-lg bg-[#F1F2E9] flex items-center justify-center shrink-0">
