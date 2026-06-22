@@ -43004,6 +43004,15 @@ function mapActivityLog(row) {
     requestId: row.request_id || void 0
   };
 }
+async function getPrimaryAdminId(client = pool) {
+  try {
+    const result = await client.query("SELECT id FROM users WHERE role = $1 ORDER BY created_at ASC LIMIT 1", ["admin"]);
+    return result.rows.length > 0 ? result.rows[0].id : null;
+  } catch (error) {
+    console.error("Failed to resolve primary admin id:", error);
+    return null;
+  }
+}
 async function logActivity(client, userId, userName, userEmail, action, details, requestId) {
   const id = "act-" + Math.random().toString(36).substring(2, 11);
   await client.query(
@@ -43011,21 +43020,19 @@ async function logActivity(client, userId, userName, userEmail, action, details,
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
     [id, userId, userName, userEmail, action, details, requestId || null]
   );
-  if (userId !== "admin-1") {
-    const adminCheck = await client.query("SELECT id FROM users WHERE id = $1", ["admin-1"]);
-    if (adminCheck.rows.length === 0) {
-      console.warn("Admin user 'admin-1' not found; skipping admin notification.");
-    } else {
-      const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
-      await client.query(
-        `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-        [adminNotifId, "admin-1", `${action} - ${userName}`, details, false, requestId || null]
-      );
-      sendPushNotification("admin-1", `${action} - ${userName}`, details, requestId).catch(
-        (err) => console.error("Failed to send push notification:", err.message)
-      );
-    }
+  const adminId = await getPrimaryAdminId(client);
+  if (adminId && userId !== adminId) {
+    const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
+    await client.query(
+      `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [adminNotifId, adminId, `${action} - ${userName}`, details, false, requestId || null]
+    );
+    sendPushNotification(adminId, `${action} - ${userName}`, details, requestId).catch(
+      (err) => console.error("Failed to send push notification:", err.message)
+    );
+  } else if (!adminId) {
+    console.warn("No admin user found; skipping admin notification.");
   }
 }
 async function startServer() {
@@ -43581,18 +43588,23 @@ async function startServer() {
           );
         } else {
           await logActivity(client, user.id, user.name, user.email, "Create Request", `Submitted ${category} repair request (#${uniqueId}).`, uniqueId);
-          const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
-          await client.query(
-            `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
-           VALUES ($1, $2, $3, $4, false, $5, NOW())`,
-            [
-              adminNotifId,
-              "admin-1",
-              "New Job Request Submitted",
-              `Student ${user.name} submitted an item for ${category} repair. (#${uniqueId})`,
-              uniqueId
-            ]
-          );
+          const adminId = await getPrimaryAdminId(client);
+          if (adminId) {
+            const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
+            await client.query(
+              `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
+             VALUES ($1, $2, $3, $4, false, $5, NOW())`,
+              [
+                adminNotifId,
+                adminId,
+                "New Job Request Submitted",
+                `Student ${user.name} submitted an item for ${category} repair. (#${uniqueId})`,
+                uniqueId
+              ]
+            );
+          } else {
+            console.warn("No admin user found; skipping admin notification for new request.");
+          }
         }
         await client.query("COMMIT");
         res.status(201).json(newRequest);
@@ -43768,12 +43780,17 @@ async function startServer() {
           }
           updatedStatus = "cancelled";
           updatedCancelReason = String(body.cancelReason).trim();
-          const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
-          await client.query(
-            `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
-             VALUES ($1, 'admin-1', $2, $3, false, $4, NOW())`,
-            [adminNotifId, "Request Cancelled by Student", `Student ${user.name} cancelled request #${id}. Reason: ${updatedCancelReason}.`, id]
-          );
+          const adminId = await getPrimaryAdminId(client);
+          if (adminId) {
+            const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
+            await client.query(
+              `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
+               VALUES ($1, $2, $3, $4, false, $5, NOW())`,
+              [adminNotifId, adminId, "Request Cancelled by Student", `Student ${user.name} cancelled request #${id}. Reason: ${updatedCancelReason}.`, id]
+            );
+          } else {
+            console.warn("No admin user found; skipping admin notification for cancelled request.");
+          }
           activityAction = "Order Cancelled (Student)";
           activityDesc = `Student cancelled request #${id}. Reason: ${updatedCancelReason}.`;
         }
@@ -43789,16 +43806,22 @@ async function startServer() {
           }
           const adminNotifId = "notif-adm-" + Math.random().toString(36).substring(2, 6);
           const notifBody = body.isQuoteAccepted ? `Student ${user.name} has accepted the quote for request #${id}.` : `Student ${user.name} has declined the quote for request #${id}. Reason: ${updatedCancelReason}.`;
-          await client.query(
-            `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
-             VALUES ($1, 'admin-1', $2, $3, false, $4, NOW())`,
-            [
-              adminNotifId,
-              `Quote ${body.isQuoteAccepted ? "Accepted" : "Declined"}`,
-              notifBody,
-              id
-            ]
-          );
+          const adminId = await getPrimaryAdminId(client);
+          if (adminId) {
+            await client.query(
+              `INSERT INTO notifications (id, student_id, title, body, is_read, request_id, created_at)
+               VALUES ($1, $2, $3, false, $4, NOW())`,
+              [
+                adminNotifId,
+                adminId,
+                `Quote ${body.isQuoteAccepted ? "Accepted" : "Declined"}`,
+                notifBody,
+                id
+              ]
+            );
+          } else {
+            console.warn("No admin user found; skipping admin notification for quote response.");
+          }
           activityAction = body.isQuoteAccepted ? "Quote Approved" : "Quote Declined";
           activityDesc = body.isQuoteAccepted ? `Student accepted quote for request #${id}.` : `Student declined quote for request #${id}. Reason: ${updatedCancelReason}.`;
         }
@@ -44083,7 +44106,10 @@ async function startServer() {
     try {
       let targetId = user.id;
       if (user.role === "admin") {
-        targetId = "admin-1";
+        const adminId = await getPrimaryAdminId();
+        if (adminId) {
+          targetId = adminId;
+        }
       }
       const result = await pool.query("SELECT * FROM notifications WHERE student_id = $1 ORDER BY created_at DESC", [targetId]);
       res.json(result.rows.map(mapNotification));
@@ -44098,7 +44124,7 @@ async function startServer() {
       return res.status(401).json({ error: "Unauthorized" });
     }
     try {
-      const targetId = user.role === "admin" ? "admin-1" : user.id;
+      const targetId = user.role === "admin" ? await getPrimaryAdminId() || user.id : user.id;
       await pool.query("UPDATE notifications SET is_read = true WHERE student_id = $1", [targetId]);
       res.json({ success: true });
     } catch (err) {

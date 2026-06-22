@@ -63,7 +63,7 @@ export default function NotificationListener() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !notifications) {
+    if (!isAuthenticated || !user || !notifications) {
       if (!isAuthenticated && !localStorage.getItem("cl_token")) {
         // Clear session storage references only when the user is truly logged out.
         seenIdsRef.current.clear();
@@ -85,7 +85,7 @@ export default function NotificationListener() {
         newlyDiscovered = true;
 
         const targetUrl = notif.requestId
-          ? user?.role === "admin"
+          ? user.role === "admin"
             ? `/admin/requests/${notif.requestId}`
             : `/requests/${notif.requestId}`
           : "/notifications";
@@ -105,10 +105,11 @@ export default function NotificationListener() {
       saveAlertedIds(currentAlerted);
 
       // Play Beep sound TWICE for each arrival event!
+      warmUpAudio();
       triggerDoubleChime();
     }
 
-  }, [notifications, isAuthenticated, addToast]);
+  }, [notifications, isAuthenticated, user, addToast, setUnreadCount]);
 
   const triggerDoubleChime = () => {
     const playChimeTone = (freq: number, duration: number) => {

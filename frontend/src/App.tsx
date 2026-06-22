@@ -32,6 +32,7 @@ import ProviderJobCard from "./features/requests/ProviderJobCard";
 import { UnifiedRequestFlow } from "./features/requests/guided/GuidedRequestFlow";
 
 import Notifications from "./features/notifications/Notifications";
+import LandingPage from "./components/LandingPage";
 
 import AdminOverview from "./features/admin/AdminOverview";
 import AdminRequestsList from "./features/admin/AdminRequestsList";
@@ -61,6 +62,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          {/* Public Landing Page */}
+          <Route path="/" element={<LandingPage />} />
+
           {/* Public Auth Portal */}
           <Route path="/login" element={<AuthScreen />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
@@ -68,11 +72,11 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Student Protected Environment */}
-          <Route path="/" element={<StudentLayout />}>
+          <Route path="/app" element={<StudentLayout />}>
             <Route index element={<StudentHome />} />
             <Route path="requests" element={<MyRequests />} />
-            <Route path="requests/new" element={<Navigate to="/requests/new/select" replace />} />
-            <Route path="requests/new/form" element={<Navigate to="/requests/new/select" replace />} />
+            <Route path="requests/new" element={<Navigate to="/app/requests/new/select" replace />} />
+            <Route path="requests/new/form" element={<Navigate to="/app/requests/new/select" replace />} />
             <Route path="requests/new/select" element={<UnifiedRequestFlow />} />
             <Route path="requests/new/:category" element={<UnifiedRequestFlow />} />
             <Route path="requests/:id" element={<RequestDetails />} />
@@ -101,7 +105,7 @@ export default function App() {
                 user?.role === "admin" ? (
                   <Navigate to="/admin" replace />
                 ) : (
-                  <Navigate to="/" replace />
+                  <Navigate to="/app" replace />
                 )
               ) : (
                 <Navigate to="/login" replace />
