@@ -14,6 +14,7 @@ import ToastContainer from "./components/ui/ToastContainer";
 import NotificationListener from "./components/NotificationListener";
 import PushNotificationManager from "./components/PushNotificationManager";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
+import InstallPrompt from "./components/ui/InstallPrompt";
 
 // Layout Wrappers
 import StudentLayout from "./components/layout/StudentLayout";
@@ -127,6 +128,7 @@ export default function App() {
         {isAuthenticated && <NotificationListener />}
         {isAuthenticated && <PushNotificationManager />}
         <ToastContainer />
+        <InstallPrompt />
       </BrowserRouter>
     </QueryClientProvider>
   );
