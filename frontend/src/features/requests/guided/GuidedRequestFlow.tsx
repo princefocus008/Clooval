@@ -141,7 +141,7 @@ export function UnifiedRequestFlow() {
 
   useEffect(() => {
     if (categoryParam && !VALID_CATEGORIES.includes(categoryParam)) {
-      navigate('/requests/new/select', { replace: true });
+      navigate('/app/requests/new/select', { replace: true });
       return;
     }
 
@@ -387,7 +387,7 @@ export function UnifiedRequestFlow() {
 
     createMutation.mutate(payload, {
       onSuccess: (newRequest) => {
-        navigate(`/requests/${newRequest.id}`);
+        navigate(`/app/requests/${newRequest.id}`);
       },
       onError: (error: any) => {
         setSubmitError(error?.message || 'Something went wrong. Please try again.');

@@ -11,7 +11,7 @@ def parse_date(date_str):
     return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
 
 def seed_db():
-    json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cloova_db.json")
+    json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "clooval_db.json")
     if not os.path.exists(json_path):
         print(f"Error: seed data file not found at {json_path}")
         return

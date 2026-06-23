@@ -80,6 +80,9 @@ export function useUpdateRequest(id: string) {
 
   return useMutation<Request, Error, Partial<Request>>({
     mutationFn: async (payload) => {
+      if (!id) {
+        throw new Error("Request ID is required to update a request.");
+      }
       const res = await api.patch(`/requests/${id}`, payload);
       return res.data;
     },

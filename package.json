@@ -1,5 +1,5 @@
 {
-  "name": "cloova",
+  "name": "clooval",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,7 @@
   "build": "npm run build:frontend && npm run build:backend",
   "start": "node dist-backend/server.cjs",
   "preview": "vite preview --config frontend/vite.config.ts",
-  "clean": "rm -rf dist dist-backend dist-frontend cloova_db.json",
+  "clean": "rm -rf dist dist-backend dist-frontend clooval_db.json",
   "lint": "tsc --noEmit",
   "generate-vapid": "node scripts/generate-vapid.mjs"
 },

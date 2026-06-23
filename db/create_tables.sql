@@ -1,4 +1,4 @@
--- Postgres DDL for Cloova app
+-- Postgres DDL for Clooval app
 -- Tables: users, providers, requests, notifications, activities
 
 CREATE TABLE IF NOT EXISTS users (

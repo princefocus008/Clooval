@@ -60,7 +60,7 @@ export default function Logo({ className = "", iconOnly = false, size = "medium"
         <div className="flex flex-col text-left ml-2 mt-[2px]">
           <div className="flex items-baseline leading-none font-serif tracking-[-0.07em]">
             <span className={`${styles.largeChar} font-normal text-[#111111] leading-[0.65] select-none`}>C</span>
-            <span className={`${styles.smallChars} font-normal text-[#111111] select-none leading-none`}>loova</span>
+            <span className={`${styles.smallChars} font-normal text-[#111111] select-none leading-none`}>looval</span>
           </div>
           <div className="flex flex-col mt-[4px] items-start ml-[11px]">
             <span className={`${styles.subText} font-bold text-[#333333] uppercase tracking-[0.24em] leading-none select-none`}>

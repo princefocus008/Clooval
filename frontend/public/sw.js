@@ -23,12 +23,12 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title || 'Cloova Notification', options)
+      self.registration.showNotification(data.title || 'Clooval Notification', options)
     );
   } catch (error) {
     console.error('Error handling push notification:', error);
     event.waitUntil(
-      self.registration.showNotification('Cloova Notification', {
+      self.registration.showNotification('Clooval Notification', {
         body: event.data.text ? event.data.text() : 'New notification',
         icon: '/favicon.svg',
         badge: '/favicon.svg',

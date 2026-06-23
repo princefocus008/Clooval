@@ -13,7 +13,7 @@ import GlobalSearch from "../GlobalSearch";
 import LoadingSpinner from "../ui/LoadingSpinner";
 
 export default function StudentLayout() {
-  const { user, isAuthenticated, initialize, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading, initialize, logout } = useAuthStore();
   const location = useLocation();
   const [isRouteChanging, setIsRouteChanging] = React.useState(false);
 
@@ -72,13 +72,21 @@ export default function StudentLayout() {
     touchStartRef.current = null;
   };
 
-  if (!isAuthenticated && !localStorage.getItem("cl_token")) {
-      return <Navigate to="/login" replace />;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
 
   // Double check admin role. If logged in as admin, they should go to /admin
   if (user && user.role === "admin") {
-      return <Navigate to="/admin" replace />;
+    return <Navigate to="/admin" replace />;
   }
 
     // Use relative paths under the student base `/app` so links resolve correctly
@@ -167,7 +175,7 @@ export default function StudentLayout() {
                 <Logo iconOnly to="/app" className="-ml-1" />
             </div>
             <div className="hidden md:block">
-              <span className="text-xs font-bold font-mono text-[#999999] uppercase tracking-wider">Cloova Services</span>
+              <span className="text-xs font-bold font-mono text-[#999999] uppercase tracking-wider">Clooval Services</span>
             </div>
           </div>
 
@@ -197,7 +205,7 @@ export default function StudentLayout() {
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center px-4">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-[#E5E5E3]">
             <h3 className="text-lg font-semibold text-[#111111]">Confirm log out</h3>
-            <p className="text-sm text-[#555555] mt-2">Are you sure you want to sign out of Cloova?</p>
+            <p className="text-sm text-[#555555] mt-2">Are you sure you want to sign out of Clooval?</p>
             <div className="mt-5 flex gap-3 justify-end">
               <button
                 onClick={() => setShowLogoutModal(false)}

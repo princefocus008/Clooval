@@ -13,6 +13,7 @@ import { syncLocalStorageWithServer } from "./lib/sync";
 import ToastContainer from "./components/ui/ToastContainer";
 import NotificationListener from "./components/NotificationListener";
 import PushNotificationManager from "./components/PushNotificationManager";
+import LoadingSpinner from "./components/ui/LoadingSpinner";
 
 // Layout Wrappers
 import StudentLayout from "./components/layout/StudentLayout";
@@ -51,12 +52,20 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  const { initialize, isAuthenticated, user } = useAuthStore();
+  const { initialize, isAuthenticated, user, isLoading } = useAuthStore();
 
   useEffect(() => {
     initialize();
     syncLocalStorageWithServer();
   }, [initialize]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

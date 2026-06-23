@@ -1,6 +1,6 @@
 # Push Notifications Implementation
 
-This document explains the push notifications feature added to Cloova, allowing users to receive notifications even when away from the web app.
+This document explains the push notifications feature added to Clooval, allowing users to receive notifications even when away from the web app.
 
 ## Overview
 
@@ -56,7 +56,7 @@ VAPID_PRIVATE_KEY=YOUR_PRIVATE_KEY_HERE
 Create or update your `.env` file with the generated keys:
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/cloova
+DATABASE_URL=postgresql://user:password@localhost:5432/clooval
 VAPID_PUBLIC_KEY=YOUR_PUBLIC_KEY_HERE
 VAPID_PRIVATE_KEY=YOUR_PRIVATE_KEY_HERE
 ```
@@ -74,7 +74,7 @@ The server will automatically:
 
 ### 4. Install the App (Optional but Recommended)
 
-For the best experience, users should install Cloova as a PWA:
+For the best experience, users should install Clooval as a PWA:
 
 1. **Chrome/Edge**: Click the install icon in address bar
 2. **Firefox**: No built-in install button yet

@@ -3,7 +3,7 @@ const axios = require('axios');
   try{
     const res = await axios.post('http://127.0.0.1:3000/api/auth/register', {
       name: 'Admin User',
-      email: 'admin@cloova.com',
+      email: 'admin@clooval.com',
       password: 'adminpass',
       phone: '+230000000',
       resident: 'Port Louis'

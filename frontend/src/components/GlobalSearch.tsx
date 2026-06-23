@@ -88,7 +88,7 @@ export default function GlobalSearch() {
     : [];
 
   const handleSelectRequest = (id: string) => {
-    navigate(`/requests/${id}`);
+    navigate(`/app/requests/${id}`);
     setQuery("");
     setIsOpen(false);
     inputRef.current?.blur();

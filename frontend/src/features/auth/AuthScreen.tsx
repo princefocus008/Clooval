@@ -10,7 +10,7 @@ import * as z from "zod";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore, useToastStore } from "../../lib/store";
 import { api } from "../../lib/api";
-import { saveLocalUser, syncLocalStorageWithServer } from "../../lib/sync";
+import { saveLocalUser } from "../../lib/sync";
 import { Eye, EyeOff, ChevronLeft } from "lucide-react";
 import loginBg from "../../assets/images/alu_campus_bg_1780756884172.jpg";
 import Logo from "../../components/Logo";
@@ -25,7 +25,7 @@ const registerSchema = z.object({
     .refine(
       (email) => {
         const lower = email.toLowerCase();
-        return lower.endsWith("@alustudent.com") || lower.endsWith("@alueducation.com") || lower.endsWith("alueducation.com") || lower === "admin@cloova.com";
+        return lower.endsWith("@alustudent.com") || lower.endsWith("@alueducation.com") || lower.endsWith("alueducation.com") || lower === "admin@clooval.com";
       },
       { message: "Must end with @alustudent.com or @alueducation.com" }
     ),
@@ -85,21 +85,15 @@ export default function AuthScreen() {
   const onLoginSubmit = async (data: LoginInput) => {
     setLoading(true);
     try {
-      // Sync local users first to support server restarts
-      await syncLocalStorageWithServer();
-      
       const res = await api.post("/auth/login", data);
       login(res.data.user, res.data.token);
       addToast(`Welcome back, ${res.data.user.name}!`, "success");
-      // allow toast + micro-animation to be perceived, then navigate
       setLoading(false);
-      setTimeout(() => {
-        if (res.data.user.role === "admin") {
-          navigate("/admin", { replace: true });
-        } else {
-          navigate("/app", { replace: true });
-        }
-      }, 180);
+      if (res.data.user.role === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/app", { replace: true });
+      }
     } catch (err: any) {
       setLoading(false);
       const msg = err.response?.data?.error || "Incorrect login email or password";
@@ -117,16 +111,13 @@ export default function AuthScreen() {
       saveLocalUser(res.data.user, data.password);
       
       login(res.data.user, res.data.token);
-      addToast("Account created successfully. Welcome to Cloova!", "success");
-      // allow toast + micro-animation to be perceived, then navigate
+      addToast("Account created successfully. Welcome to Clooval!", "success");
       setLoading(false);
-      setTimeout(() => {
-        if (res.data.user.role === "admin") {
-          navigate("/admin", { replace: true });
-        } else {
-          navigate("/app", { replace: true });
-        }
-      }, 180);
+      if (res.data.user.role === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/app", { replace: true });
+      }
     } catch (err: any) {
       setLoading(false);
       const msg = err.response?.data?.error || "Registration failed. Try again.";
@@ -166,7 +157,7 @@ export default function AuthScreen() {
           <Logo className="mb-8" to="/" />
 
           <h1 id="auth-title" className="text-3xl font-black tracking-tight text-[#111111] mb-2 font-sans select-none">
-            {isLogin ? "WELCOME BACK" : "JOIN CLOOVA"}
+            {isLogin ? "WELCOME BACK" : "JOIN CLOOVAL"}
           </h1>
           <p className="text-sm text-[#777777] mb-8">
             {isLogin
@@ -509,7 +500,7 @@ export default function AuthScreen() {
           {/* Ambient smooth zoom on hover */}
           <img
             src={loginBg}
-            alt="Cloova login page background"
+            alt="Clooval login page background"
             className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-[12000ms] ease-out scale-100 group-hover:scale-108 pointer-events-none"
             referrerPolicy="no-referrer"
           />
@@ -521,13 +512,13 @@ export default function AuthScreen() {
           <div className="absolute top-6 right-6 z-20 bg-white/95 backdrop-blur-md px-4 py-2 rounded-full border border-neutral-200 shadow-lg flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-[10px] uppercase font-bold text-[#111111] tracking-wider font-mono">
-              Cloova Services
+              Clooval Services
             </span>
           </div>
 
           {/* Elegant Copywriting floating details */}
           <div className="relative z-10 p-8 lg:p-10 text-white max-w-lg select-none">
-            {/* Minimal line node to signify "Cloova" connection */}
+            {/* Minimal line node to signify "Clooval" connection */}
             <div className="w-12 h-[3px] bg-white rounded-full mb-5 opacity-90" />
             
             <p className="text-[28px] lg:text-[32px] font-black tracking-tight leading-tight mb-3 font-sans text-white">
@@ -539,7 +530,7 @@ export default function AuthScreen() {
             </p>
 
             <div className="mt-8 flex items-center gap-3">
-              {/* Overlapping small avatar indicators representing Cloova network */}
+              {/* Overlapping small avatar indicators representing Clooval network */}
               <div className="flex -space-x-2">
                 <span className="w-6.5 h-6.5 rounded-full border border-white bg-neutral-800 flex items-center justify-center text-[8px] font-extrabold font-mono text-white">AM</span>
                 <span className="w-6.5 h-6.5 rounded-full border border-white bg-neutral-700 flex items-center justify-center text-[8px] font-extrabold font-mono text-neutral-100">KW</span>

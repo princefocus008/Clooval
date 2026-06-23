@@ -57,6 +57,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
   initialize: () => void;
@@ -67,28 +68,32 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
   isAuthenticated: false,
+  isLoading: true,
   login: (user, token) => {
     localStorage.setItem("cl_token", token);
     localStorage.setItem("cl_user", JSON.stringify(user));
-    set({ user, token, isAuthenticated: true });
+    set({ user, token, isAuthenticated: true, isLoading: false });
   },
   logout: () => {
     localStorage.removeItem("cl_token");
     localStorage.removeItem("cl_user");
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
   initialize: () => {
+    set({ isLoading: true });
     const token = localStorage.getItem("cl_token");
     const userStr = localStorage.getItem("cl_user");
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
-        set({ user, token, isAuthenticated: true });
+        set({ user, token, isAuthenticated: true, isLoading: false });
+        return;
       } catch (e) {
         localStorage.removeItem("cl_token");
         localStorage.removeItem("cl_user");
       }
     }
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
   updateUser: (updatedUser) => {
     localStorage.setItem("cl_user", JSON.stringify(updatedUser));

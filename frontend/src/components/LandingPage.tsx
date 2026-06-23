@@ -94,11 +94,11 @@ export default function LandingPage() {
                 Port Louis is over an hour away. Transport costs money. Finding a trustworthy repair shop in a city where you don't speak the language is its own kind of stress. Most students just give up.
               </p>
               <p>
-                We built Cloova because we watched this happen too many times. Cracked screens left unrepaired. Broken laptops abandoned. Torn clothes replaced instead of fixed. Not because students don't care, but because the system made it too hard.
+                We built Clooval because we watched this happen too many times. Cracked screens left unrepaired. Broken laptops abandoned. Torn clothes replaced instead of fixed. Not because students don't care, but because the system made it too hard.
               </p>
             </div>
             <div className="mt-8 border-l-[3px] border-[#111111] bg-[#F1F2E9] p-5 text-[16px] leading-[1.6] text-[#111111] font-medium">
-              Cloova is the operator that sits between you and Port Louis. You describe the problem. We handle everything else.
+              Clooval is the operator that sits between you and Port Louis. You describe the problem. We handle everything else.
             </div>
             <div className="mt-12 grid gap-4 border-t border-[#E5E5E3] pt-12 sm:grid-cols-3 sm:gap-6">
               <div className="flex flex-col gap-2 border-r border-[#E5E5E3] pr-4 sm:border-r">
@@ -236,7 +236,7 @@ export default function LandingPage() {
         <section className="bg-[#F1F2E9] px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-[800px]">
             <p className="mb-6 text-[12px] uppercase tracking-[0.8px] text-[#999999]">
-              WHY STUDENTS TRUST CLOOVA
+              WHY STUDENTS TRUST CLOOVAL
             </p>
             <p className="max-w-[680px] text-[20px] font-medium leading-[1.5] tracking-[-0.3px] text-[#111111] sm:text-[24px]">
               We don't take a cut and disappear. Every request is personally handled by the team, the same person who picks up your calls and answers your messages.
@@ -276,11 +276,11 @@ export default function LandingPage() {
       <footer className="bg-[#111111] px-4 py-10 text-white sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1100px] flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[15px] font-semibold">Cloova</p>
+            <p className="text-[15px] font-semibold">Clooval</p>
             <p className="mt-2 text-[12px] text-white/60">Campus Concierge · ALCHE, Mauritius</p>
           </div>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-8">
-            <p className="text-[12px] text-white/40">© 2025 Cloova. All rights reserved.</p>
+            <p className="text-[12px] text-white/40">© 2025 Clooval. All rights reserved.</p>
             <div className="flex flex-wrap items-center gap-4 text-[14px] text-white/60">
               <a href="/contact" className="transition hover:text-white">Contact</a>
               <a href="/login" className="transition hover:text-white">Log in</a>

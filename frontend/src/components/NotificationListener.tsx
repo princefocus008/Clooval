@@ -87,7 +87,7 @@ export default function NotificationListener() {
         const targetUrl = notif.requestId
           ? user.role === "admin"
             ? `/admin/requests/${notif.requestId}`
-            : `/requests/${notif.requestId}`
+            : `/app/requests/${notif.requestId}`
           : "/notifications";
 
         // Custom display duration: 8000ms (at least 5 seconds, up to 8 seconds!)

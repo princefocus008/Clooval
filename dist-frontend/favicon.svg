@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 40" width="512" height="512" role="img" aria-label="Clooval logo">
+  <title>Clooval</title>
+  <defs>
+    <clipPath id="left-circle-clip">
+      <circle cx="17" cy="20" r="14" />
+    </clipPath>
+  </defs>
+  <circle cx="29" cy="20" r="14" fill="#111111" clip-path="url(#left-circle-clip)" />
+  <circle cx="17" cy="20" r="14" stroke="#111111" stroke-width="2.5" fill="none" />
+  <circle cx="29" cy="20" r="14" stroke="#111111" stroke-width="2.5" fill="none" />
+</svg>

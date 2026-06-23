@@ -127,7 +127,7 @@ export default function MyRequests() {
               return (
                 <div
                   key={request.id}
-                  onClick={() => navigate(`/requests/${request.id}`)}
+                  onClick={() => navigate(`/app/requests/${request.id}`)}
                   className="flex items-center justify-between py-3 group cursor-pointer hover:bg-[#F7F7F5]/50 px-2 rounded-lg transition"
                 >
                   <div className="flex items-start gap-4 pr-4">

@@ -13,6 +13,7 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 20000,
 });
 
 // Attach Authorization Token interceptor
@@ -34,14 +35,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token and logout
       import("./store").then(({ useAuthStore }) => {
         useAuthStore.getState().logout();
       }).catch(() => {
         localStorage.removeItem("cl_token");
         localStorage.removeItem("cl_user");
       });
-      // Wait, we can let routing trigger redirect
+      window.location.replace("/login");
     }
     return Promise.reject(error);
   }

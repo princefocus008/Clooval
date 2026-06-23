@@ -30,7 +30,7 @@ import Logo from "../Logo";
 import LoadingSpinner from "../ui/LoadingSpinner";
 
 export default function AdminLayout() {
-  const { user, isAuthenticated, initialize, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading, initialize, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -98,7 +98,7 @@ export default function AdminLayout() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [dropdownTab, setDropdownTab] = useState<"activities" | "notifications">("activities");
   const [lastSeenActivityCount, setLastSeenActivityCount] = useState<number>(() => {
-    return Number(localStorage.getItem("cloova_seen_activities_count") || "0");
+    return Number(localStorage.getItem("clooval_seen_activities_count") || "0");
   });
 
   useEffect(() => {
@@ -173,7 +173,15 @@ export default function AdminLayout() {
     );
   };
 
-  if (!isAuthenticated && !localStorage.getItem("cl_token")) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
@@ -246,7 +254,7 @@ export default function AdminLayout() {
               {userInitials}
             </div>
             <div className="truncate flex-1">
-              <p className="text-[12px] font-bold text-[#111111] leading-none truncate">{user?.name || "Cloova Operator"}</p>
+              <p className="text-[12px] font-bold text-[#111111] leading-none truncate">{user?.name || "Clooval Operator"}</p>
               <p className="text-[10px] text-[#999999] mt-0.5 leading-none">System Admin</p>
             </div>
             <button
@@ -514,7 +522,7 @@ export default function AdminLayout() {
                   {/* Footer */}
                   <div className="p-3 bg-[#FAF9F6] border-t border-[#E5E5E3] text-center shrink-0">
                     <p className="text-[9px] font-mono text-[#999999]">
-                      Direct Console Dispatcher • Cloova Lockers Maurititus
+                      Direct Console Dispatcher • Clooval Lockers Maurititus
                     </p>
                   </div>
                 </div>
@@ -581,7 +589,7 @@ export default function AdminLayout() {
                         onClick={() => {
                           if (adminActivities) {
                             setLastSeenActivityCount(adminActivities.length);
-                            localStorage.setItem("cloova_seen_activities_count", adminActivities.length.toString());
+                            localStorage.setItem("clooval_seen_activities_count", adminActivities.length.toString());
                           }
                           setShowNotificationDropdown(false);
                         }}
@@ -762,14 +770,14 @@ export default function AdminLayout() {
             </div>
             <div className="p-5 space-y-3.5 text-xs text-[#555555] leading-relaxed">
               <p>
-                Welcome back to the <strong>Cloova Repair Console</strong>. This system processes Mauritian university repair jobs.
+                Welcome back to the <strong>Clooval Repair Console</strong>. This system processes Mauritian university repair jobs.
               </p>
               <div>
                 <h4 className="font-semibold text-black uppercase tracking-wider text-[10px] mb-1">Status Stages:</h4>
                 <ul className="list-disc pl-4 space-y-1">
                   <li><strong>Pending Review:</strong> Items submitted by students.</li>
                   <li><strong>Awaiting Quote:</strong> Invoiced cost sent for confirmation.</li>
-                  <li><strong>Ready Collection:</strong> Repaired item in the Cloova locker drop off.</li>
+                  <li><strong>Ready Collection:</strong> Repaired item in the Clooval locker drop off.</li>
                 </ul>
               </div>
               <p className="bg-[#FEF9E7] border border-[#F39C12]/20 p-2.5 rounded text-amber-900 leading-tight">

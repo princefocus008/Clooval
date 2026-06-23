@@ -10,9 +10,9 @@ self.addEventListener('push', (event) => {
   try {
     const data = event.data.json();
     const options = {
-      body: data.body || 'New notification',
-      icon: '/assets/images/logo.png',
-      badge: '/assets/images/logo.png',
+    body: data.body || 'New notification',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
       tag: data.id || 'notification',
       requireInteraction: true, // Keeps notification visible until user interacts
       data: {
@@ -23,15 +23,15 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title || 'Cloova Notification', options)
+      self.registration.showNotification(data.title || 'Clooval Notification', options)
     );
   } catch (error) {
     console.error('Error handling push notification:', error);
     event.waitUntil(
-      self.registration.showNotification('Cloova Notification', {
+      self.registration.showNotification('Clooval Notification', {
         body: event.data.text ? event.data.text() : 'New notification',
-        icon: '/assets/images/logo.png',
-        badge: '/assets/images/logo.png',
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
         tag: 'notification',
       })
     );

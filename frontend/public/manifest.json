@@ -1,6 +1,6 @@
 {
-  "name": "Cloova - Student Service Concierge",
-  "short_name": "Cloova",
+  "name": "Clooval - Student Service Concierge",
+  "short_name": "Clooval",
   "description": "Student repair and service request concierge platform with real-time push notifications",
   "start_url": "/",
   "scope": "/",

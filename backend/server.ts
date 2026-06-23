@@ -27,7 +27,7 @@ if (!JWT_SECRET) {
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   try {
-    webpush.setVapidDetails("mailto:cloova@example.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    webpush.setVapidDetails("mailto:clooval@example.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
   } catch (err) {
     console.error("Invalid VAPID keys provided; push notifications will be disabled.", err);
   }
@@ -293,7 +293,7 @@ async function startServer() {
 
     const lowerEmail = email.toLowerCase();
     const isValidDomain = lowerEmail.endsWith("@alustudent.com") || lowerEmail.endsWith("@alueducation.com") || lowerEmail.endsWith("alueducation.com");
-    if (!isValidDomain && lowerEmail !== "admin@cloova.com") {
+    if (!isValidDomain && lowerEmail !== "admin@clooval.com") {
       return res.status(400).json({ error: "Must use a valid Student Email (@alustudent.com or alueducation.com)" });
     }
 
@@ -307,7 +307,7 @@ async function startServer() {
         return res.status(400).json({ error: "Email is already registered" });
       }
 
-      const isFirstAdmin = lowerEmail === "admin@cloova.com" || lowerEmail.startsWith("caleb.admin");
+      const isFirstAdmin = lowerEmail === "admin@clooval.com" || lowerEmail.startsWith("caleb.admin");
       const generatedStudentId = `ALU-2026-${Math.floor(100 + Math.random() * 900)}`;
       const newUserId = "user-" + Math.random().toString(36).substring(2, 11);
 
@@ -757,12 +757,20 @@ async function startServer() {
     try {
       await client.query("BEGIN");
 
-      // Calculate next request ID based on total count
-      const countRes = await client.query("SELECT COUNT(*) FROM requests");
-      const reqIdNum = Number(countRes.rows[0].count) + 1;
-      const padding = reqIdNum.toString().padStart(3, "0");
+      // Calculate next request ID using the latest zero-padded REQ- ID
+      const latestReqRes = await client.query(
+        "SELECT id FROM requests WHERE id LIKE 'REQ-%' ORDER BY id DESC LIMIT 1"
+      );
+      let nextIdNum = 1;
+      if (latestReqRes.rows.length > 0) {
+        const lastId = latestReqRes.rows[0].id as string;
+        const match = lastId.match(/^REQ-(\d+)$/);
+        if (match) {
+          nextIdNum = Number(match[1]) + 1;
+        }
+      }
+      const padding = nextIdNum.toString().padStart(3, "0");
       const uniqueId = `REQ-${padding}`;
-
 
       // Determine target student details
       let targetStudentId = user.id;
@@ -1627,7 +1635,7 @@ async function startServer() {
   }
 
   const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Cloova Express Server booted on port ${PORT}`);
+    console.log(`Clooval Express Server booted on port ${PORT}`);
   });
 
   server.on("error", (err: any) => {

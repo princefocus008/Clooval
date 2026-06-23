@@ -155,7 +155,7 @@ export default function NewRequestForm() {
       },
       {
         onSuccess: (newReq) => {
-          navigate(`/requests/${newReq.id}`);
+          navigate(`/app/requests/${newReq.id}`);
         },
       }
     );

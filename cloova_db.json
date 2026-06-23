@@ -1,9 +1,9 @@
 {
   "users": {
-    "admin@cloova.com": {
+    "admin@clooval.com": {
       "id": "admin-1",
-      "name": "Cloova Admin",
-      "email": "admin@cloova.com",
+      "name": "Clooval Admin",
+      "email": "admin@clooval.com",
       "studentId": "FOUNDER",
       "role": "admin",
       "passwordHash": "admin123"
@@ -144,7 +144,7 @@
       "isQuoteAccepted": true,
       "depositPaid": true,
       "finalPaid": false,
-      "readyNotes": "Ready for pickup at the Cloova drop-off desk (Room 32B). Please bring the balance of 400 MUR (on collection).",
+      "readyNotes": "Ready for pickup at the Clooval drop-off desk (Room 32B). Please bring the balance of 400 MUR (on collection).",
       "operatorNotes": "Devendra did a stellar job with the heavy duty stitching. Ready for collect!",
       "internalNotes": "Devendra charged 600. Deposit 400 was paid. Balance is 400 with service charge.",
       "providerId": "prov-3",
@@ -253,7 +253,7 @@
       "id": "notif-1",
       "studentId": "student-1",
       "title": "Quote Received",
-      "body": "Cloova Support has uploaded a repair quote for your iPhone 13 Screen Repair. Review details to accept.",
+      "body": "Clooval Support has uploaded a repair quote for your iPhone 13 Screen Repair. Review details to accept.",
       "isRead": false,
       "createdAt": "2026-06-06T09:36:06.698Z"
     },
@@ -261,7 +261,7 @@
       "id": "notif-2",
       "studentId": "student-1",
       "title": "Item Ready for Collection",
-      "body": "Your Nike Air Force 1 shoes are ready for pickup from the Cloova locker drop off.",
+      "body": "Your Nike Air Force 1 shoes are ready for pickup from the Clooval locker drop off.",
       "isRead": false,
       "createdAt": "2026-06-07T05:36:06.698Z"
     }
@@ -279,8 +279,8 @@
     {
       "id": "act-fygu7m5su",
       "userId": "admin-1",
-      "userName": "Cloova Admin",
-      "userEmail": "admin@cloova.com",
+      "userName": "Clooval Admin",
+      "userEmail": "admin@clooval.com",
       "action": "Login",
       "details": "Signed in from dev/web portal.",
       "createdAt": "2026-06-07T11:44:55.179Z"
@@ -333,8 +333,8 @@
     {
       "id": "act-v9w3z453b",
       "userId": "admin-1",
-      "userName": "Cloova Admin",
-      "userEmail": "admin@cloova.com",
+      "userName": "Clooval Admin",
+      "userEmail": "admin@clooval.com",
       "action": "Login",
       "details": "Signed in from dev/web portal.",
       "createdAt": "2026-06-07T11:28:07.881Z"
@@ -342,8 +342,8 @@
     {
       "id": "act-sylo4chdt",
       "userId": "admin-1",
-      "userName": "Cloova Admin",
-      "userEmail": "admin@cloova.com",
+      "userName": "Clooval Admin",
+      "userEmail": "admin@clooval.com",
       "action": "Login",
       "details": "Signed in from dev/web portal.",
       "createdAt": "2026-06-07T11:27:53.845Z"
