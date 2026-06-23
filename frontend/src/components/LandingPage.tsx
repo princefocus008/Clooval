@@ -7,31 +7,9 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import heroImage from "../assets/images/alu_campus_bg_1780756884172.jpg";
 import Logo from "./Logo";
-import { promptInstallApp } from "../lib/installPrompt";
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [installMessage, setInstallMessage] = React.useState<string | null>(null);
-  const [isInstalling, setIsInstalling] = React.useState(false);
-
-  const handleAppInstall = async () => {
-    setIsInstalling(true);
-    const result = await promptInstallApp();
-    setIsInstalling(false);
-
-    if (!result) {
-      setInstallMessage(
-        "If you are on iOS, tap the browser share icon and select 'Add to Home Screen' to install the app."
-      );
-      return;
-    }
-
-    if (result.outcome === "accepted") {
-      setInstallMessage("App installed! Open it from your home screen anytime.");
-    } else {
-      setInstallMessage("Install dismissed. You can still use Clooval from the browser.");
-    }
-  };
 
   return (
     <div className="bg-white text-[#111111]">
@@ -75,44 +53,20 @@ export default function LandingPage() {
               <p className="mt-6 max-w-[480px] text-[18px] leading-[1.6] text-white/75 sm:text-[18px]">
                 Submit a repair request from your room. We handle the rest, no trips required.
               </p>
-              <div className="mt-10 rounded-[32px] border border-white/20 bg-white/10 p-6 shadow-[0_40px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-8">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="max-w-[540px]">
-                    <span className="inline-flex rounded-full bg-[#F2A900] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#111111]">
-                      Mobile app ready
-                    </span>
-                    <p className="mt-4 text-[20px] font-semibold leading-7 text-white sm:text-[22px]">
-                      Install Clooval on your phone for the fastest experience, instant updates, and one-tap access.
-                    </p>
-                    <p className="mt-3 text-sm leading-6 text-white/80 sm:text-[15px]">
-                      Use the app for request tracking, push notifications, and quick repairs without opening your browser.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <button
-                      onClick={() => handleAppInstall()}
-                      className="inline-flex h-14 items-center justify-center rounded-[12px] bg-[#F2A900] px-6 text-[15px] font-semibold text-[#111111] transition hover:bg-[#e2b100]"
-                    >
-                      {isInstalling ? "Installing..." : "Download the app"}
-                    </button>
-                    <button
-                      onClick={() => navigate("/login")}
-                      className="inline-flex h-14 items-center justify-center rounded-[12px] bg-[#111111] px-6 text-[15px] font-medium text-white transition hover:bg-[#333333]"
-                    >
-                      Get started
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-5 rounded-3xl border border-white/15 bg-black/10 p-4 text-sm text-white/80 sm:text-base">
-                  <strong className="font-semibold">Tip:</strong> On iPhone, if install doesn’t appear, tap the browser share icon and choose <span className="font-semibold">Add to Home Screen</span>.
-                </div>
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <button
+                  onClick={() => navigate("/login")}
+                  className="inline-flex h-12 items-center justify-center rounded-[8px] bg-[#111111] px-[28px] text-[15px] font-medium text-white transition hover:bg-[#333333]"
+                >
+                  Get started
+                </button>
+                <button
+                  onClick={() => document.getElementById("process")?.scrollIntoView({ behavior: "smooth" })}
+                  className="inline-flex h-12 items-center justify-center rounded-[8px] border border-white/40 bg-white/15 px-[28px] text-[15px] font-medium text-white transition hover:bg-white/30"
+                >
+                  See how it works
+                </button>
               </div>
-              {installMessage && (
-                <div className="mt-5 rounded-3xl border border-white/30 bg-white/10 px-4 py-3 text-sm text-white/90 shadow-[0_20px_80px_rgba(0,0,0,0.12)]">
-                  {installMessage}
-                </div>
-              )}
             </div>
           </div>
 
