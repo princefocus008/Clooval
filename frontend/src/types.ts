@@ -88,6 +88,26 @@ export interface Notification {
   amount?: number;
 }
 
+export interface SupportMessage {
+  id: string;
+  name: string;
+  email: string;
+  category: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  category: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export interface ActivityLog {
   id: string;
   userId: string;

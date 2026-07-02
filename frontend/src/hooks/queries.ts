@@ -5,7 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient, UseQueryResult } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Request, Provider, Notification } from "../types";
+import { Request, Provider, Notification, SupportMessage, ContactMessage } from "../types";
 import { useToastStore, useAppStore, useAuthStore } from "../lib/store";
 import { saveLocalRequest, saveLocalRequests, saveLocalNotification, saveLocalNotifications, getLocalNotifications } from "../lib/sync";
 
@@ -15,6 +15,8 @@ export const KEYS = {
   request: (id: string) => ["requests", id] as const,
   providers: ["providers"] as const,
   notifications: ["notifications"] as const,
+  supportMessages: ["admin-support"] as const,
+  contactMessages: ["admin-contact"] as const,
 };
 
 // Hook: Get all requests (User specific based on auth header)
@@ -255,14 +257,89 @@ export function useMarkNotificationRead() {
   });
 }
 
+// Hook: Get support messages (Admin only)
+export function useAdminSupportMessages() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery<SupportMessage[], Error>({
+    queryKey: KEYS.supportMessages,
+    queryFn: async () => {
+      const res = await api.get("/admin/support");
+      return res.data;
+    },
+    enabled: isAuthenticated,
+    staleTime: 2000,
+    refetchInterval: 5000,
+  });
+}
+
+// Hook: Mark support message read (Admin only)
+export function useMarkSupportMessageRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, string>({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/admin/support/${id}/read`);
+      return res.data;
+    },
+    onSuccess: (_res, id) => {
+      queryClient.setQueryData<SupportMessage[] | undefined>(KEYS.supportMessages, (current) =>
+        current?.map((message) =>
+          message.id === id ? { ...message, isRead: true } : message
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: KEYS.supportMessages });
+    },
+  });
+}
+
+// Hook: Get Contact Messages (Admin Only)
+export function useAdminContactMessages() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery<ContactMessage[], Error>({
+    queryKey: KEYS.contactMessages,
+    queryFn: async () => {
+      const res = await api.get("/admin/contact");
+      return res.data;
+    },
+    enabled: isAuthenticated,
+    staleTime: 2000,
+    refetchInterval: 5000,
+  });
+}
+
+// Hook: Mark contact message read (Admin only)
+export function useMarkContactMessageRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, string>({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/admin/contact/${id}/read`);
+      return res.data;
+    },
+    onSuccess: (_res, id) => {
+      queryClient.setQueryData<ContactMessage[] | undefined>(KEYS.contactMessages, (current) =>
+        current?.map((message) =>
+          message.id === id ? { ...message, isRead: true } : message
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: KEYS.contactMessages });
+    },
+  });
+}
+
 // Hook: Get all users with their associated requests and activities (Admin only)
 export function useAdminUsers() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return useQuery<any[]>({
     queryKey: ["admin-users"] as const,
     queryFn: async () => {
       const res = await api.get("/admin/users");
       return res.data;
     },
+    enabled: isAuthenticated,
     staleTime: 2000,
     refetchInterval: 4000, // Keep admin user management dashboard in sync
   });
@@ -270,12 +347,15 @@ export function useAdminUsers() {
 
 // Hook: Get all activity logs in the app (Admin only)
 export function useAdminActivities() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return useQuery<any[]>({
     queryKey: ["admin-activities"] as const,
     queryFn: async () => {
       const res = await api.get("/admin/activities");
       return res.data;
     },
+    enabled: isAuthenticated,
     staleTime: 2000,
     refetchInterval: 4000, // Real-time notification feed polls every 4 seconds
   });

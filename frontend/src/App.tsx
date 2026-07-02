@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./lib/store";
 import { syncLocalStorageWithServer } from "./lib/sync";
@@ -13,6 +13,7 @@ import { syncLocalStorageWithServer } from "./lib/sync";
 import ToastContainer from "./components/ui/ToastContainer";
 import NotificationListener from "./components/NotificationListener";
 import PushNotificationManager from "./components/PushNotificationManager";
+import PWAInstallBanner from "./components/PWAInstallBanner";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 
 // Layout Wrappers
@@ -36,6 +37,8 @@ import Notifications from "./features/notifications/Notifications";
 import LandingPage from "./components/LandingPage";
 
 import AdminOverview from "./features/admin/AdminOverview";
+import AdminSupportInbox from "./features/admin/AdminSupportInbox";
+import AdminContactInbox from "./features/admin/AdminContactInbox";
 import AdminRequestsList from "./features/admin/AdminRequestsList";
 import AdminRequestDetails from "./features/admin/AdminRequestDetails";
 import Providers from "./features/admin/Providers";
@@ -59,28 +62,6 @@ export default function App() {
     syncLocalStorageWithServer();
   }, [initialize]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const isMobile = /android|iphone|ipad|ipod|windows phone|mobile/i.test(navigator.userAgent);
-    if (!isMobile) return;
-
-    const handleBeforeInstallPrompt = (event: Event) => {
-      const installEvent = event as any;
-      if (typeof installEvent.prompt !== "function") return;
-      event.preventDefault();
-      installEvent.prompt().catch(() => {
-        // No-op: browser may reject prompt if it is not available.
-      });
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt as EventListener);
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt as EventListener);
-    };
-  }, []);
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -92,64 +73,77 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Routes>
-          {/* Public Landing Page */}
-          <Route path="/" element={<LandingPage />} />
-
-          {/* Public Auth Portal */}
-          <Route path="/login" element={<AuthScreen />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-
-          {/* Student Protected Environment */}
-          <Route path="/app" element={<StudentLayout />}>
-            <Route index element={<StudentHome />} />
-            <Route path="requests" element={<MyRequests />} />
-            <Route path="requests/new" element={<Navigate to="/app/requests/new/select" replace />} />
-            <Route path="requests/new/form" element={<Navigate to="/app/requests/new/select" replace />} />
-            <Route path="requests/new/select" element={<UnifiedRequestFlow />} />
-            <Route path="requests/new/:category" element={<UnifiedRequestFlow />} />
-            <Route path="requests/:id" element={<RequestDetails />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="profile" element={<Profile />} />
-          </Route>
-
-          {/* Admin Protected Operations */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminOverview />} />
-            <Route path="requests" element={<AdminRequestsList />} />
-            <Route path="requests/:id" element={<AdminRequestDetails />} />
-            <Route path="users" element={<UsersAudit />} />
-            <Route path="providers" element={<Providers />} />
-            <Route path="settings" element={<AdminSettings />} />
-          </Route>
-
-          {/* Public Screenshot/Printable Job Card */}
-          <Route path="/job-card/:requestId" element={<ProviderJobCard />} />
-
-          {/* Fallback Catch */}
-          <Route
-            path="*"
-            element={
-              isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" replace />
-                ) : (
-                  <Navigate to="/app" replace />
-                )
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-        </Routes>
-        
-        {/* Central Toast System alerts */}
-        {isAuthenticated && <NotificationListener />}
-        {isAuthenticated && <PushNotificationManager />}
-        <ToastContainer />
+        <AppRoutes isAuthenticated={isAuthenticated} user={user} />
       </BrowserRouter>
     </QueryClientProvider>
+  );
+}
+
+function AppRoutes({ isAuthenticated, user }: { isAuthenticated: boolean; user: any }) {
+  const location = useLocation();
+  const isLandingPage = location.pathname === "/" || location.pathname === "/landing";
+
+  return (
+    <>
+      <Routes>
+        {/* Public Landing Page */}
+        <Route path="/" element={<LandingPage />} />
+
+        {/* Public Auth Portal */}
+        <Route path="/login" element={<AuthScreen />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Student Protected Environment */}
+        <Route path="/app" element={<StudentLayout />}>
+          <Route index element={<StudentHome />} />
+          <Route path="requests" element={<MyRequests />} />
+          <Route path="requests/new" element={<Navigate to="/app/requests/new/select" replace />} />
+          <Route path="requests/new/form" element={<Navigate to="/app/requests/new/select" replace />} />
+          <Route path="requests/new/select" element={<UnifiedRequestFlow />} />
+          <Route path="requests/new/:category" element={<UnifiedRequestFlow />} />
+          <Route path="requests/:id" element={<RequestDetails />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+
+        {/* Admin Protected Operations */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminOverview />} />
+          <Route path="support" element={<AdminSupportInbox />} />
+          <Route path="contact" element={<AdminContactInbox />} />
+          <Route path="requests" element={<AdminRequestsList />} />
+          <Route path="requests/:id" element={<AdminRequestDetails />} />
+          <Route path="users" element={<UsersAudit />} />
+          <Route path="providers" element={<Providers />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
+
+        {/* Public Screenshot/Printable Job Card */}
+        <Route path="/job-card/:requestId" element={<ProviderJobCard />} />
+
+        {/* Fallback Catch */}
+        <Route
+          path="*"
+          element={
+            isAuthenticated ? (
+              user?.role === "admin" ? (
+                <Navigate to="/admin" replace />
+              ) : (
+                <Navigate to="/app" replace />
+              )
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+      </Routes>
+
+      {isLandingPage && <PWAInstallBanner />}
+      {isAuthenticated && <NotificationListener />}
+      {isAuthenticated && <PushNotificationManager />}
+      <ToastContainer />
+    </>
   );
 }

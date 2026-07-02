@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import crypto from "crypto";
+import { sendEmail } from "../frontend/src/services/emailService";
 // Vite is only used during local development. We avoid a static import
 // so production bundles don't include Vite and its path-logic (which
 // can break when bundled). When running in dev, load Vite at runtime.
@@ -20,6 +21,8 @@ dotenv.config();
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || undefined;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || undefined;
 const JWT_SECRET = process.env.JWT_SECRET || undefined;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@clooval.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "19981235";
 
 if (!JWT_SECRET) {
   console.warn("JWT_SECRET not set in environment. Tokens will not be signed securely. Set JWT_SECRET in .env for production.");
@@ -66,6 +69,91 @@ async function initializePushSubscriptionsTable() {
     console.log("Push subscriptions table initialized");
   } catch (error) {
     console.error("Failed to initialize push subscriptions table:", error);
+  }
+}
+
+async function initializeContactMessagesTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contact_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        message TEXT NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log("Contact messages table initialized");
+  } catch (error) {
+    console.error("Failed to initialize contact messages table:", error);
+  }
+}
+
+async function initializeSupportMessagesTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        message TEXT NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log("Support messages table initialized");
+  } catch (error) {
+    console.error("Failed to initialize support messages table:", error);
+  }
+}
+
+async function ensureAdminUserExists() {
+  try {
+    const lowerAdminEmail = ADMIN_EMAIL.toLowerCase();
+    const existingAdmin = await pool.query(
+      "SELECT id, password_hash FROM users WHERE LOWER(email) = $1",
+      [lowerAdminEmail]
+    );
+
+    if (existingAdmin.rows.length > 0) {
+      const currentPassword = existingAdmin.rows[0].password_hash;
+      if (currentPassword !== ADMIN_PASSWORD) {
+        await pool.query(
+          "UPDATE users SET password_hash = $1 WHERE id = $2",
+          [ADMIN_PASSWORD, existingAdmin.rows[0].id]
+        );
+        console.log(`Admin password for ${ADMIN_EMAIL} was updated to the current backend default.`);
+      }
+      return;
+    }
+
+    const adminId = "admin-" + Math.random().toString(36).substring(2, 11);
+    await pool.query(
+      `INSERT INTO users (
+        id, name, email, student_id, role, phone, nationality, programme_of_study, resident,
+        password_hash, is_suspended, notification_email, notification_sms, notification_in_app, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, true, true, true, NOW())`,
+      [
+        adminId,
+        "Clooval Admin",
+        lowerAdminEmail,
+        "FOUNDER",
+        "admin",
+        null,
+        null,
+        null,
+        null,
+        ADMIN_PASSWORD,
+      ]
+    );
+
+    console.log(`Admin account created: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
+    console.log("Set ADMIN_PASSWORD in .env to override or secure this default.");
+  } catch (error) {
+    console.error("Failed to ensure admin user exists:", error);
   }
 }
 
@@ -282,6 +370,166 @@ async function startServer() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
+  });
+
+  const contactFormLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 3,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many contact submissions, please try again later." },
+  });
+
+  const supportFormLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 4,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many support submissions, please try again later." },
+  });
+
+  await initializeContactMessagesTable();
+  await initializeSupportMessagesTable();
+  await ensureAdminUserExists();
+
+  // API Contact Form Route
+  app.post("/api/contact", contactFormLimiter, async (req, res) => {
+    const { name, email, category, message } = req.body;
+
+    if (typeof name !== "string" || typeof email !== "string" || typeof category !== "string" || typeof message !== "string") {
+      return res.status(400).json({ error: "All contact fields are required." });
+    }
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedCategory = category.trim();
+    const trimmedMessage = message.trim();
+
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      return res.status(400).json({ error: "Name must be between 2 and 100 characters." });
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(trimmedEmail)) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+
+    const validCategories = [
+      "General Enquiry",
+      "Service Question",
+      "Complaint",
+      "Partnership / Business",
+      "Press / Media",
+      "Other",
+    ];
+
+    if (!validCategories.includes(trimmedCategory)) {
+      return res.status(400).json({ error: "Please select a valid category." });
+    }
+
+    if (trimmedMessage.length < 10 || trimmedMessage.length > 1000) {
+      return res.status(400).json({ error: "Message must be between 10 and 1000 characters." });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO contact_messages (name, email, category, message) VALUES ($1, $2, $3, $4)`,
+        [trimmedName, trimmedEmail, trimmedCategory, trimmedMessage]
+      );
+      await client.query("COMMIT");
+
+      const subject = `New contact message — ${trimmedCategory} from ${trimmedName}`;
+      const htmlContent = `
+        <p><strong>Name:</strong> ${trimmedName}</p>
+        <p><strong>Email:</strong> ${trimmedEmail}</p>
+        <p><strong>Category:</strong> ${trimmedCategory}</p>
+        <p><strong>Message:</strong></p>
+        <p>${trimmedMessage.replace(/\n/g, "<br />")}</p>
+      `;
+
+      sendEmail("cloovalcontact@gmail.com", subject, htmlContent).catch((sendError) => {
+        console.error("Failed to send contact notification email:", sendError);
+      });
+
+      return res.json({ success: true, message: "Message received." });
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      console.error("Contact submit error:", err);
+      return res.status(500).json({ error: "Unable to save your message at this time." });
+    } finally {
+      client.release();
+    }
+  });
+
+  // API Support Widget Route
+  app.post("/api/support", supportFormLimiter, async (req, res) => {
+    const { name, email, category, message } = req.body;
+
+    if (typeof name !== "string" || typeof email !== "string" || typeof category !== "string" || typeof message !== "string") {
+      return res.status(400).json({ error: "All support fields are required." });
+    }
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedCategory = category.trim();
+    const trimmedMessage = message.trim();
+
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      return res.status(400).json({ error: "Name must be between 2 and 100 characters." });
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(trimmedEmail)) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+
+    const validCategories = [
+      "General Support",
+      "Repair Update",
+      "Billing / Payment",
+      "Other",
+    ];
+
+    if (!validCategories.includes(trimmedCategory)) {
+      return res.status(400).json({ error: "Please select a valid support category." });
+    }
+
+    if (trimmedMessage.length < 10 || trimmedMessage.length > 1000) {
+      return res.status(400).json({ error: "Message must be between 10 and 1000 characters." });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO support_messages (name, email, category, message) VALUES ($1, $2, $3, $4)`,
+        [trimmedName, trimmedEmail, trimmedCategory, trimmedMessage]
+      );
+      await client.query("COMMIT");
+
+      const subject = `New support request — ${trimmedCategory} from ${trimmedName}`;
+      const htmlContent = `
+        <p><strong>Name:</strong> ${trimmedName}</p>
+        <p><strong>Email:</strong> ${trimmedEmail}</p>
+        <p><strong>Category:</strong> ${trimmedCategory}</p>
+        <p><strong>Message:</strong></p>
+        <p>${trimmedMessage.replace(/\n/g, "<br />")}</p>
+      `;
+
+      sendEmail("cloovalcontact@gmail.com", subject, htmlContent).catch((sendError) => {
+        console.error("Failed to send support notification email:", sendError);
+      });
+
+      return res.json({ success: true, message: "Support request sent." });
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      console.error("Support submit error:", err);
+      return res.status(500).json({ error: "Unable to save your support request at this time." });
+    } finally {
+      client.release();
+    }
   });
 
   // API Authentication Routes
@@ -1226,6 +1474,90 @@ async function startServer() {
       res.json(allUsersList);
     } catch (err: any) {
       console.error("Admin get users error:", err);
+      res.status(500).json({ error: "Internal server error: " + err.message });
+    }
+  });
+
+  // REST API: Get Support Messages (Admin Only)
+  app.get("/api/admin/support", async (req, res) => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "admin") {
+      return res.status(401).json({ error: "Admin access only" });
+    }
+
+    try {
+      const result = await pool.query("SELECT * FROM support_messages ORDER BY created_at DESC");
+      const supportMessages = result.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        category: row.category,
+        message: row.message,
+        isRead: row.is_read,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      }));
+      res.json(supportMessages);
+    } catch (err: any) {
+      console.error("Admin get support messages error:", err);
+      res.status(500).json({ error: "Internal server error: " + err.message });
+    }
+  });
+
+  // REST API: Mark Support Message as Read (Admin Only)
+  app.post("/api/admin/support/:id/read", async (req, res) => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "admin") {
+      return res.status(401).json({ error: "Admin access only" });
+    }
+
+    const { id } = req.params;
+    try {
+      await pool.query("UPDATE support_messages SET is_read = true WHERE id = $1", [id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Admin mark support read error:", err);
+      res.status(500).json({ error: "Internal server error: " + err.message });
+    }
+  });
+
+  // REST API: Get Contact Messages (Admin Only)
+  app.get("/api/admin/contact", async (req, res) => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "admin") {
+      return res.status(401).json({ error: "Admin access only" });
+    }
+
+    try {
+      const result = await pool.query("SELECT * FROM contact_messages ORDER BY created_at DESC");
+      const contactMessages = result.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        category: row.category,
+        message: row.message,
+        isRead: row.is_read,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      }));
+      res.json(contactMessages);
+    } catch (err: any) {
+      console.error("Admin get contact messages error:", err);
+      res.status(500).json({ error: "Internal server error: " + err.message });
+    }
+  });
+
+  // REST API: Mark Contact Message as Read (Admin Only)
+  app.post("/api/admin/contact/:id/read", async (req, res) => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "admin") {
+      return res.status(401).json({ error: "Admin access only" });
+    }
+
+    const { id } = req.params;
+    try {
+      await pool.query("UPDATE contact_messages SET is_read = true WHERE id = $1", [id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Admin mark contact read error:", err);
       res.status(500).json({ error: "Internal server error: " + err.message });
     }
   });

@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { useAuthStore, useToastStore } from "../../lib/store";
-import { useNotifications, useAdminActivities, useAdminUsers, useSendCustomAlert, useMarkNotificationsRead, useMarkNotificationRead } from "../../hooks/queries";
+import { useNotifications, useAdminActivities, useAdminUsers, useAdminSupportMessages, useAdminContactMessages, useSendCustomAlert, useMarkNotificationsRead, useMarkNotificationRead } from "../../hooks/queries";
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -23,7 +23,8 @@ import {
   User,
   ExternalLink,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  Inbox
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Logo from "../Logo";
@@ -88,6 +89,12 @@ export default function AdminLayout() {
 
   const { data: notifications } = useNotifications();
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
+
+  const { data: supportMessages } = useAdminSupportMessages();
+  const supportUnreadCount = supportMessages?.filter((message) => !message.isRead).length || 0;
+
+  const { data: contactMessages } = useAdminContactMessages();
+  const contactUnreadCount = contactMessages?.filter((message) => !message.isRead).length || 0;
 
   const markAllRead = useMarkNotificationsRead();
   const markNotificationRead = useMarkNotificationRead();
@@ -192,6 +199,8 @@ export default function AdminLayout() {
 
   const menuItems = [
     { label: "Overview", path: "/admin", icon: LayoutDashboard },
+    { label: "Support Inbox", path: "/admin/support", icon: Inbox, badge: supportUnreadCount },
+    { label: "Contact Inbox", path: "/admin/contact", icon: MessageSquare, badge: contactUnreadCount },
     { label: "Requests", path: "/admin/requests", icon: ClipboardList },
     { label: "Users", path: "/admin/users", icon: Users },
     { label: "Providers", path: "/admin/providers", icon: UserCheck },
@@ -236,11 +245,11 @@ export default function AdminLayout() {
                   <Icon className="w-[18px] h-[18px] shrink-0 opacity-85" />
                   <span>{item.label}</span>
                 </div>
-                {item.label === "Overview" && unreadCount > 0 && (
+                {(item.label === "Overview" && unreadCount > 0) || (item.label === "Inbox" && item.badge && item.badge > 0) ? (
                   <span className="bg-[#E74C3C] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                    {unreadCount}
+                    {item.label === "Overview" ? unreadCount : item.badge}
                   </span>
-                )}
+                ) : null}
               </Link>
             );
           })}
