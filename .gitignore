@@ -19,6 +19,10 @@ temp_*.mjs
 *.db
 clooval_db.json
 
+# Analysis files
+*_ANALYSIS.md
+*_analysis.md
+
 # IDE
 .vscode/
 .idea/
