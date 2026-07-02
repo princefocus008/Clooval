@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400..700;1,400..700&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -97,4 +97,29 @@ option {
 *:focus-visible {
   outline: 2px solid #111111;
   outline-offset: 2px;
+}
+
+/* Support Widget Animations */
+@keyframes jingle {
+  0%   { transform: rotate(0deg); }
+  15%  { transform: rotate(-12deg); }
+  30%  { transform: rotate(12deg); }
+  45%  { transform: rotate(-8deg); }
+  60%  { transform: rotate(8deg); }
+  75%  { transform: rotate(-4deg); }
+  90%  { transform: rotate(4deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.jingle {
+  animation: jingle 500ms ease-in-out 1;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.slide-up {
+  animation: slideUp 300ms ease-out forwards;
 }
