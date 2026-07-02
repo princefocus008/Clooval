@@ -9,7 +9,7 @@ import { MessageCircle, Send, X } from 'lucide-react';
 const WELCOME_MESSAGE = {
   id: 'welcome',
   type: 'ec',
-  text: 'Hi there! Welcome to the ALCHE Election Commission support chat.\n\nYou can ask us about:\n• Nomination requirements\n• Campaign rules\n• Voting day information\n• Results and appeals\n\nLeave your message and we\'ll respond within 24 hours.',
+  text: 'Hey there! Welcome to Clooval support.\n\nWe\'re here to help you navigate life in Mauritius. You can ask us about:\n· Finding local services near campus\n· Submitting or tracking a service request\n· How Clooval works for students\n· Account or platform issues\n\nDrop your message below and we\'ll get back to you shortly.',
   time: 'Today',
 };
 
@@ -60,7 +60,7 @@ export default function SupportWidget() {
       const autoReply = {
         id: `ec-${Date.now()}`,
         type: 'ec',
-        text: 'Thanks for reaching out! Your message has been received. A member of the Election Commission will respond within 24 hours at your registered email.',
+        text: 'Thanks for reaching out! We\'ve received your message and someone from the Clooval team will follow up with you shortly. In the meantime, you can browse available services on your dashboard.',
         time: 'Just now',
       };
       setMessages((prev) => [...prev, autoReply]);
@@ -198,7 +198,7 @@ export default function SupportWidget() {
                     lineHeight: '1.2',
                   }}
                 >
-                  ALCHE Election Commission
+                  Clooval Support
                 </div>
                 <div
                   style={{
@@ -208,7 +208,7 @@ export default function SupportWidget() {
                     lineHeight: '1.2',
                   }}
                 >
-                  Support Team · Online
+                  Campus Concierge · Online
                 </div>
               </div>
             </div>
