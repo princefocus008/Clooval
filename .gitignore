@@ -7,3 +7,19 @@ coverage/
 .env*
 !.env.example
 
+# Build artifacts
+dist/
+dist-*/
+*.cjs.map
+*.js.map
+
+# Temporary files
+temp_*.cjs
+temp_*.mjs
+*.db
+clooval_db.json
+
+# IDE
+.vscode/
+.idea/
+
