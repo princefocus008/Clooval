@@ -124,3 +124,7 @@ export async function sendPasswordResetEmail(toEmail: string, toName: string, to
 
   return _send(toEmail, "Reset your Cloova password", htmlContent);
 }
+
+export async function sendEmail(toEmail: string, subject: string, htmlContent: string): Promise<boolean> {
+  return _send(toEmail, subject, htmlContent);
+}
