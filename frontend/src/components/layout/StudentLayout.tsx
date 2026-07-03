@@ -11,6 +11,7 @@ import { Home, ClipboardList, Bell, User as UserIcon, LogOut } from "lucide-reac
 import Logo from "../Logo";
 import GlobalSearch from "../GlobalSearch";
 import LoadingSpinner from "../ui/LoadingSpinner";
+import SupportWidget from "../SupportWidget";
 
 export default function StudentLayout() {
   const { user, isAuthenticated, isLoading, initialize, logout } = useAuthStore();
@@ -200,6 +201,8 @@ export default function StudentLayout() {
           )}
         </div>
       </main>
+
+      <SupportWidget />
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center px-4">

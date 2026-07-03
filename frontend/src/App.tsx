@@ -15,7 +15,6 @@ import NotificationListener from "./components/NotificationListener";
 import PushNotificationManager from "./components/PushNotificationManager";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
-import SupportWidget from "./components/SupportWidget";
 
 // Layout Wrappers
 import StudentLayout from "./components/layout/StudentLayout";
@@ -144,7 +143,6 @@ function AppRoutes({ isAuthenticated, user }: { isAuthenticated: boolean; user: 
       {isLandingPage && <PWAInstallBanner />}
       {isAuthenticated && <NotificationListener />}
       {isAuthenticated && <PushNotificationManager />}
-      <SupportWidget />
       <ToastContainer />
     </>
   );

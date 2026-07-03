@@ -260,11 +260,16 @@ export function useMarkNotificationRead() {
 // Hook: Get support messages (Admin only)
 export function useAdminSupportMessages() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
+  const { setUnreadCount } = useAppStore();
   return useQuery<SupportMessage[], Error>({
     queryKey: KEYS.supportMessages,
     queryFn: async () => {
       const res = await api.get("/admin/support");
+      // update global app unread count for sidebar badges
+      if (res.data && Array.isArray(res.data)) {
+        const unread = res.data.filter((m: any) => !m.isRead).length;
+        setUnreadCount(unread);
+      }
       return res.data;
     },
     enabled: isAuthenticated,

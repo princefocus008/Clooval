@@ -3,405 +3,498 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { HelpCircle, X, CheckCircle } from "lucide-react";
+import { api } from "../lib/api";
+import { useAuthStore } from "../lib/store";
 
-const WELCOME_MESSAGE = {
-  id: 'welcome',
-  type: 'ec',
-  text: 'Hey there! Welcome to Clooval support.\n\nWe\'re here to help you navigate life in Mauritius. You can ask us about:\n· Finding local services near campus\n· Submitting or tracking a service request\n· How Clooval works for students\n· Account or platform issues\n\nDrop your message below and we\'ll get back to you shortly.',
-  time: 'Today',
-};
+const CATEGORIES = ["Request help", "Tech issue", "Other"];
+const MAX_MESSAGE_LENGTH = 500;
 
 export default function SupportWidget() {
-  const [isHovered, setIsHovered] = useState(false);
+  const { user } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
-  const [isJingling, setIsJingling] = useState(false);
-  const [messages, setMessages] = useState([WELCOME_MESSAGE]);
-  const [inputValue, setInputValue] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  const [category, setCategory] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [countdown, setCountdown] = useState(5);
+  const [bottomOffset, setBottomOffset] = useState(24);
 
-  const messageContainerRef = useRef(null);
-  const textareaRef = useRef(null);
+  const closeTimerRef = useRef(null);
+  const countdownTimerRef = useRef(null);
 
-  // Jingle animation on mouse enter
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    setIsJingling(true);
-    setTimeout(() => setIsJingling(false), 500);
-  };
+  useEffect(() => {
+    if (!isSuccess) {
+      return;
+    }
 
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsOpen(false);
+      resetForm();
+    }, 5000);
 
-  // Toggle panel open/close
-  const handleToggle = () => {
-    setIsOpen(!isOpen);
-  };
+    countdownTimerRef.current = window.setInterval(() => {
+      setCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
 
-  // Handle send message
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
-
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      type: 'user',
-      text: inputValue.trim(),
-      time: 'Just now',
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+      if (countdownTimerRef.current) {
+        window.clearInterval(countdownTimerRef.current);
+      }
     };
+  }, [isSuccess]);
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue('');
-    setIsSending(true);
+  useEffect(() => {
+    const updateOffset = () => {
+      if (window.innerWidth <= 640) {
+        setBottomOffset(88); // avoid mobile bottom nav
+      } else {
+        setBottomOffset(24);
+      }
+    };
+    updateOffset();
+    window.addEventListener("resize", updateOffset);
+    return () => window.removeEventListener("resize", updateOffset);
+  }, []);
 
-    // Simulate auto-reply after 1200ms
-    setTimeout(() => {
-      const autoReply = {
-        id: `ec-${Date.now()}`,
-        type: 'ec',
-        text: 'Thanks for reaching out! We\'ve received your message and someone from the Clooval team will follow up with you shortly. In the meantime, you can browse available services on your dashboard.',
-        time: 'Just now',
-      };
-      setMessages((prev) => [...prev, autoReply]);
-      setIsSending(false);
-    }, 1200);
+  const resetForm = () => {
+    setCategory("");
+    setMessage("");
+    setError("");
+    setIsSubmitting(false);
+    setIsSuccess(false);
+    setCountdown(5);
   };
 
-  // Handle Enter key to send
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const canSubmit = useMemo(() => {
+    return category && message.trim().length >= 10 && !isSubmitting;
+  }, [category, message, isSubmitting]);
+
+  const handleSend = async () => {
+    if (!canSubmit) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const resp = await api.post("/support", {
+        category,
+        message: message.trim(),
+      });
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      // play a subtle notification sound on success (file fallback -> WebAudio)
+      (async () => {
+        try {
+          const audio = new Audio('/assets/notification-ring.mp3');
+          await audio.play();
+        } catch (e) {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.value = 880;
+            g.gain.value = 0.02;
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.start();
+            setTimeout(() => { o.stop(); ctx.close(); }, 200);
+          } catch (e2) {
+            // ignore audio errors
+          }
+        }
+      })();
+    } catch (err) {
+      setIsSubmitting(false);
+      const serverMsg = err?.response?.data?.message || err?.message;
+      setError(serverMsg || "Something went wrong. Please try again.");
     }
   };
 
-  // Auto-scroll to bottom when messages update
-  useEffect(() => {
-    if (messageContainerRef.current) {
-      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  // Focus textarea when panel opens
-  useEffect(() => {
-    if (isOpen && textareaRef.current) {
-      setTimeout(() => textareaRef.current?.focus(), 310);
-    }
-  }, [isOpen]);
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
-      {/* Floating Button */}
       <button
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={handleToggle}
-        className="fixed z-[9999] flex items-center justify-center transition-all duration-300 ease-out"
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-label="Open support widget"
         style={{
-          bottom: '28px',
-          right: '28px',
-          width: isHovered ? '130px' : '52px',
-          height: '52px',
-          backgroundColor: '#DFBA73',
-          borderRadius: isHovered ? '26px' : '9999px',
-          boxShadow: '0 4px 20px rgba(15, 44, 89, 0.25)',
-          cursor: 'pointer',
+          position: "fixed",
+          bottom: bottomOffset,
+          right: 24,
+          width: 52,
+          height: 52,
+          borderRadius: 9999,
+          backgroundColor: "#111111",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.20)",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "none",
+          cursor: "pointer",
+          transition: "all 160ms ease",
+        }}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.backgroundColor = "#333333";
+          event.currentTarget.style.transform = "scale(1.04)";
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.backgroundColor = "#111111";
+          event.currentTarget.style.transform = "scale(1)";
         }}
       >
-        <div
-          className={isJingling ? 'jingle' : ''}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            marginLeft: isHovered ? '4px' : '0px',
-            transformOrigin: 'center',
-          }}
-        >
-          <MessageCircle size={22} color="#0F2C59" />
-        </div>
-
-        {/* Support Text (appears on hover) */}
-        {isHovered && (
-          <span
-            style={{
-              marginLeft: '8px',
-              fontFamily: 'DM Sans, sans-serif',
-              fontSize: '13px',
-              fontWeight: 700,
-              color: '#0F2C59',
-              textTransform: 'uppercase',
-              letterSpacing: '1.5px',
-              opacity: 1,
-              transition: 'opacity 200ms 100ms',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Support
-          </span>
-        )}
+        <HelpCircle size={22} color="#FFFFFF" />
       </button>
 
-      {/* Chat Panel */}
       {isOpen && (
         <div
-          className="slide-up"
           style={{
-            position: 'fixed',
-            bottom: '92px',
-            right: '28px',
-            width: 'min(340px, calc(100vw - 32px))',
-            height: '480px',
-            borderRadius: '0px',
-            backgroundColor: '#FFFFFF',
-            boxShadow: '0 8px 40px rgba(15, 44, 89, 0.18)',
-            border: '1px solid #E2E2E2',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 9998,
+            position: "fixed",
+            bottom: 88,
+            right: 24,
+            width: "min(340px, calc(100vw - 32px))",
+            maxHeight: 520,
+            backgroundColor: "#FFFFFF",
+            border: "1px solid #E5E5E3",
+            borderRadius: 12,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+            overflow: "hidden",
+            zIndex: 9999,
+            animation: "support-panel-open 200ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
-          {/* Panel Header */}
           <div
             style={{
-              backgroundColor: '#0F2C59',
-              height: '64px',
-              flexShrink: 0,
-              padding: '0 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              height: 56,
+              backgroundColor: "#111111",
+              borderRadius: "12px 12px 0 0",
+              padding: "0 16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {/* Online indicator */}
-              <div
+            <div>
+              <p
                 style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#4ADE80',
-                  flexShrink: 0,
-                }}
-              />
-              {/* Header text */}
-              <div>
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: 'white',
-                    lineHeight: '1.2',
-                  }}
-                >
-                  Clooval Support
-                </div>
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: '10px',
-                    color: 'rgba(255, 255, 255, 0.6)',
-                    lineHeight: '1.2',
-                  }}
-                >
-                  Campus Concierge · Online
-                </div>
-              </div>
-            </div>
-
-            {/* Close button */}
-            <button
-              onClick={() => setIsOpen(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'rgba(255, 255, 255, 0.7)',
-                transition: 'color 200ms',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'white')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)')}
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Message Area */}
-          <div
-            ref={messageContainerRef}
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '16px',
-              backgroundColor: '#FFFFFF',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-            }}
-          >
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: msg.type === 'user' ? 'flex-end' : 'flex-start',
-                  gap: '4px',
+                  margin: 0,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#FFFFFF",
                 }}
               >
-                {/* Message Bubble */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    gap: msg.type === 'user' ? '0px' : '8px',
-                  }}
-                >
-                  {msg.type === 'ec' && (
-                    <div
-                      style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '4px',
-                        backgroundColor: '#0F2C59',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'DM Sans, sans-serif',
-                          fontSize: '9px',
-                          fontWeight: 700,
-                          color: '#DFBA73',
-                        }}
-                      >
-                        EC
-                      </span>
-                    </div>
-                  )}
-
-                  <div
-                    style={{
-                      backgroundColor: msg.type === 'user' ? '#0F2C59' : '#F5F5F5',
-                      color: msg.type === 'user' ? 'white' : '#333333',
-                      fontFamily: 'DM Sans, sans-serif',
-                      fontSize: '13px',
-                      lineHeight: '1.6',
-                      padding: '10px 14px',
-                      borderRadius: '0px',
-                      maxWidth: '240px',
-                      borderLeft: msg.type === 'ec' ? '3px solid #DFBA73' : 'none',
-                      wordWrap: 'break-word',
-                      whiteSpace: 'pre-line',
-                    }}
-                  >
-                    {msg.text}
-                  </div>
-                </div>
-
-                {/* Timestamp */}
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: '10px',
-                    color: msg.type === 'user' ? 'rgba(255, 255, 255, 0.5)' : '#999999',
-                    textAlign: msg.type === 'user' ? 'right' : 'left',
-                    marginRight: msg.type === 'user' ? '0px' : 'auto',
-                  }}
-                >
-                  {msg.time}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Input Area */}
-          <div
-            style={{
-              flexShrink: 0,
-              borderTop: '1px solid #E2E2E2',
-              padding: '12px 16px',
-              backgroundColor: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'flex-end',
-              gap: '10px',
-            }}
-          >
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
-              style={{
-                flex: 1,
-                fontFamily: 'DM Sans, sans-serif',
-                fontSize: '13px',
-                color: '#333333',
-                backgroundColor: '#F5F5F5',
-                border: '1px solid #E2E2E2',
-                borderRadius: '0px',
-                padding: '10px 12px',
-                resize: 'none',
-                minHeight: '40px',
-                maxHeight: '100px',
-                outline: 'none',
-                transition: 'border-color 200ms',
-                fontWeight: 400,
-              }}
-              onFocus={(e) => (e.target.style.borderColor = '#0F2C59')}
-              onBlur={(e) => (e.target.style.borderColor = '#E2E2E2')}
-            />
-
-            {/* Send Button */}
+                Get help
+              </p>
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  fontSize: 11,
+                  color: "rgba(255,255,255,0.55)",
+                }}
+              >
+                We'll respond shortly
+              </p>
+            </div>
             <button
-              onClick={handleSend}
-              disabled={!inputValue.trim() || isSending}
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                resetForm();
+              }}
+              aria-label="Close support panel"
               style={{
-                width: '40px',
-                height: '40px',
-                flexShrink: 0,
-                backgroundColor:
-                  !inputValue.trim() || isSending ? '#E2E2E2' : '#DFBA73',
-                borderRadius: '0px',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor:
-                  !inputValue.trim() || isSending ? 'not-allowed' : 'pointer',
-                transition: 'background 200ms',
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                backgroundColor: "rgba(255,255,255,0.12)",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                transition: "background 150ms ease",
               }}
-              onMouseEnter={(e) => {
-                if (inputValue.trim() && !isSending) {
-                  e.currentTarget.style.backgroundColor = '#C8A45E';
-                }
+              onMouseEnter={(event) => {
+                event.currentTarget.style.backgroundColor = "rgba(255,255,255,0.20)";
               }}
-              onMouseLeave={(e) => {
-                if (inputValue.trim() && !isSending) {
-                  e.currentTarget.style.backgroundColor = '#DFBA73';
-                }
+              onMouseLeave={(event) => {
+                event.currentTarget.style.backgroundColor = "rgba(255,255,255,0.12)";
               }}
             >
-              <Send
-                size={16}
-                color={!inputValue.trim() || isSending ? '#999999' : '#0F2C59'}
-              />
+              <X size={16} color="#FFFFFF" />
             </button>
           </div>
+
+          {isSuccess ? (
+            <div style={{ padding: "32px 20px", textAlign: "center" }}>
+              <CheckCircle size={36} color="#111111" />
+              <h2
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "#111111",
+                }}
+              >
+                Message sent
+              </h2>
+              <p
+                style={{
+                  margin: "16px 0 0",
+                  fontSize: 13,
+                  color: "#555555",
+                  lineHeight: 1.6,
+                }}
+              >
+                We'll get back to you at {user.email}. Usually within a few hours.
+              </p>
+              <button
+                type="button"
+                onClick={resetForm}
+                style={{
+                  marginTop: 24,
+                  border: "none",
+                  background: "none",
+                  color: "#999999",
+                  fontSize: 13,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                }}
+              >
+                Send another message
+              </button>
+              <p
+                style={{
+                  marginTop: 12,
+                  fontSize: 11,
+                  color: "#999999",
+                }}
+              >
+                Closing in {countdown} second{countdown === 1 ? "" : "s"}...
+              </p>
+            </div>
+          ) : (
+            <div style={{ padding: "20px 16px", overflowY: "auto" }}>
+              <div
+                style={{
+                  backgroundColor: "#F7F7F5",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  marginBottom: 16,
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.5px",
+                    color: "#999999",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Sending as
+                </p>
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: "#111111",
+                  }}
+                >
+                  {user.name}
+                </p>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    color: "#999999",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {user.email}
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="support-category"
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.5px",
+                    color: "#999999",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  What do you need help with?
+                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                  {CATEGORIES.map((option) => {
+                    const selected = category === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setCategory(option)}
+                        style={{
+                          height: 32,
+                          padding: "0 14px",
+                          borderRadius: 6,
+                          border: "1px solid #E5E5E3",
+                          backgroundColor: selected ? "#111111" : "#FFFFFF",
+                          color: selected ? "#FFFFFF" : "#555555",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 150ms ease",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <label
+                  htmlFor="support-message"
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.5px",
+                    color: "#999999",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Your message
+                </label>
+                <textarea
+                  id="support-message"
+                  value={message}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    if (nextValue.length <= MAX_MESSAGE_LENGTH) {
+                      setMessage(nextValue);
+                    }
+                  }}
+                  placeholder="Describe what you need help with..."
+                  style={{
+                    width: "100%",
+                    minHeight: 96,
+                    border: "1px solid #E5E5E3",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    marginTop: 8,
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                    color: "#111111",
+                    resize: "none",
+                    outline: "none",
+                  }}
+                  onFocus={(event) => {
+                    event.currentTarget.style.border = "2px solid #111111";
+                  }}
+                  onBlur={(event) => {
+                    event.currentTarget.style.border = "1px solid #E5E5E3";
+                  }}
+                />
+                <div
+                  style={{
+                    marginTop: 8,
+                    textAlign: "right",
+                    fontSize: 11,
+                    color: "#999999",
+                  }}
+                >
+                  {message.length} / {MAX_MESSAGE_LENGTH}
+                </div>
+              </div>
+
+              {error && (
+                <p
+                  style={{
+                    marginTop: 12,
+                    color: "#555555",
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!canSubmit}
+                style={{
+                  width: "100%",
+                  height: 40,
+                  marginTop: 12,
+                  borderRadius: 8,
+                  border: "none",
+                  backgroundColor: !canSubmit ? "#E5E5E3" : "#111111",
+                  color: !canSubmit ? "#999999" : "#FFFFFF",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: !canSubmit ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {isSubmitting ? (
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      border: "2px solid #FFFFFF",
+                      borderTopColor: "transparent",
+                      borderRadius: "50%",
+                      animation: "support-spinner 0.7s linear infinite",
+                      display: "inline-block",
+                    }}
+                  />
+                ) : (
+                  "Send message"
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
+
+      <style>{`
+        @keyframes support-spinner {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes support-panel-open {
+          from { opacity: 0; transform: translateY(10px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </>
   );
 }

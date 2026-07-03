@@ -537,7 +537,7 @@ export default function AuthScreen() {
                 <span className="w-6.5 h-6.5 rounded-full border border-white bg-neutral-900 flex items-center justify-center text-[8px] font-extrabold font-mono text-neutral-200">CE</span>
               </div>
               <span className="text-xs font-semibold text-neutral-300 uppercase tracking-widest leading-none">
-                Vetted by 350+ ALU Students
+                Vetted by ALCHE Students
               </span>
             </div>
           </div>

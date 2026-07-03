@@ -103,6 +103,7 @@ export default function AdminLayout() {
   const { data: adminActivities } = useAdminActivities();
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
   const [dropdownTab, setDropdownTab] = useState<"activities" | "notifications">("activities");
   const [lastSeenActivityCount, setLastSeenActivityCount] = useState<number>(() => {
     return Number(localStorage.getItem("clooval_seen_activities_count") || "0");
@@ -279,9 +280,14 @@ export default function AdminLayout() {
 
       {/* MOBILE BAR */}
       <header className="md:hidden h-16 bg-white border-b border-[#E5E5E3] px-6 flex items-center justify-between sticky top-0 z-30">
-        <span className="font-bold text-sm tracking-tight flex items-center gap-4 text-black">
-          <Logo iconOnly to="/" className="-ml-1" /> Admin Console
-        </span>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowMobileNav(true)} className="p-2 rounded-md">
+            <ChevronDown className="w-5 h-5" />
+          </button>
+          <span className="font-bold text-sm tracking-tight flex items-center gap-4 text-black">
+            <Logo iconOnly to="/" className="-ml-1" /> Admin Console
+          </span>
+        </div>
 
         {/* Small floating navigation bar */}
         <div className="flex items-center gap-2">
@@ -312,6 +318,35 @@ export default function AdminLayout() {
           </button>
         </div>
       </header>
+
+      {/* MOBILE NAV DRAWER */}
+      {showMobileNav && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="w-64 bg-white border-r border-[#E5E5E3] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <Logo to="/admin" />
+              <button onClick={() => setShowMobileNav(false)} className="p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <nav className="space-y-2">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.path} to={item.path} onClick={() => setShowMobileNav(false)} className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-[#F7F7F5]">
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </div>
+                    {item.badge ? <span className="bg-[#E74C3C] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{item.badge}</span> : null}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+          <div className="flex-1" onClick={() => setShowMobileNav(false)} />
+        </div>
+      )}
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center px-4">

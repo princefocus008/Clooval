@@ -2,7 +2,7 @@ import sgMail from "@sendgrid/mail";
 
 const DEFAULT_FROM_EMAIL = "cloovalcontact@gmail.com";
 const DEFAULT_FROM_NAME = "Clooval";
-const DEFAULT_FRONTEND_URL = "http://localhost:3000";
+const DEFAULT_FRONTEND_URL = "https://clooval.com";
 let sendGridConfigured = false;
 
 function ensureSendGridConfigured(): boolean {

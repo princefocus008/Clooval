@@ -6,8 +6,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import heroImage from "../assets/images/alu_campus_bg_1780756884172.jpg";
+import { api } from "../lib/api";
 import Logo from "./Logo";
-import { Send, X, MessageCircle, Phone, Mail, MapPin, Apple, Smartphone, CheckCircle, ChevronDown } from "lucide-react";
+import { Send, X, MessageCircle, Phone, Mail, MapPin, CheckCircle, ChevronDown } from "lucide-react";
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -27,16 +28,7 @@ export default function LandingPage() {
   const [formError, setFormError] = useState("");
   const messageRef = useRef<HTMLTextAreaElement>(null);
 
-  // Support widget state
-  const [supportOpen, setSupportOpen] = useState(false);
-  const [showSupportWidget, setShowSupportWidget] = useState(true);
-  const [supportMessage, setSupportMessage] = useState("");
-  const [supportIsSubmitting, setSupportIsSubmitting] = useState(false);
-  const [supportSuccess, setSupportSuccess] = useState(false);
-  const [supportError, setSupportError] = useState("");
 
-  // PWA install state
-  const [footerTooltip, setFooterTooltip] = useState("");
 
   const CONTACT_CATEGORIES = [
     "General Enquiry",
@@ -107,20 +99,16 @@ export default function LandingPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          category,
-          message: message.trim(),
-        }),
+      console.debug("LandingPage: submitting contact", { name: name.trim(), email: email.trim(), category, message: message.trim() });
+      const res = await api.post("/contact", {
+        name: name.trim(),
+        email: email.trim(),
+        category,
+        message: message.trim(),
       });
-
-      const result = await response.json();
-      if (!response.ok) {
-        setFormError(result?.error || "Something went wrong. Please try again or email us directly at cloovalcontact@gmail.com.");
+      console.debug("LandingPage: contact response", res.status, res.data);
+      if (!res.data || res.data.success !== true) {
+        setFormError(res.data?.error || "Something went wrong. Please try again or email us directly at cloovalcontact@gmail.com.");
         return;
       }
 
@@ -145,56 +133,6 @@ export default function LandingPage() {
   const resetForm = () => {
     setIsSuccess(false);
     setSubmittedEmail("");
-  };
-
-  const handleSupportSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!supportMessage.trim() || supportMessage.trim().length < 5) {
-      setSupportError("Message must be at least 5 characters.");
-      return;
-    }
-
-    setSupportIsSubmitting(true);
-    setSupportError("");
-
-    try {
-      const response = await fetch("/api/support", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Guest",
-          email: "support@clooval.com",
-          category: "General Support",
-          message: supportMessage.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        setSupportError("Failed to send message. Please try again.");
-        return;
-      }
-
-      setSupportSuccess(true);
-      setSupportMessage("");
-      setTimeout(() => {
-        setSupportSuccess(false);
-        setSupportOpen(false);
-      }, 2000);
-    } catch (error) {
-      setSupportError("Network error. Please try again.");
-    } finally {
-      setSupportIsSubmitting(false);
-    }
-  };
-
-  const handleFooterAndroidClick = () => {
-    setFooterTooltip("Open in Chrome. Tap menu (⋮) > Add to Home Screen.");
-    setTimeout(() => setFooterTooltip(""), 4000);
-  };
-
-  const handleFooterIOSClick = () => {
-    setFooterTooltip("Share icon → Add to Home Screen");
-    setTimeout(() => setFooterTooltip(""), 4000);
   };
 
   return (
@@ -237,7 +175,7 @@ export default function LandingPage() {
                 Your items. Fixed.
               </h1>
               <p className="mt-6 max-w-[480px] text-[18px] leading-[1.6] text-white/75 sm:text-[18px]">
-                Submit a repair request from your room. We handle the rest, no trips required.
+                Submit a request from your comfort. We handle the rest, no trips required.
               </p>
               <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <button
@@ -284,12 +222,12 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="mt-8 border-l-[3px] border-[#111111] bg-[#F1F2E9] p-5 text-[16px] leading-[1.6] text-[#111111] font-medium">
-              Clooval is the operator that sits between you and Port Louis. You describe the problem. We handle everything else.
+              Clooval is the operator that sits between you and that long trip. You describe the problem. We handle everything else.
             </div>
             <div className="mt-12 grid gap-4 border-t border-[#E5E5E3] pt-12 sm:grid-cols-3 sm:gap-6">
               <div className="flex flex-col gap-2 border-r border-[#E5E5E3] pr-4 sm:border-r">
                 <span className="text-[24px] font-semibold text-[#111111]">6 service categories</span>
-                <span className="text-[13px] text-[#999999]">Phone, laptop, clothing and more</span>
+                <span className="text-[13px] text-[#999999]">Phone, laptop, accessories and more</span>
               </div>
               <div className="flex flex-col gap-2 border-r border-[#E5E5E3] px-4 sm:border-r">
                 <span className="text-[24px] font-semibold text-[#111111]">1 drop point</span>
@@ -309,7 +247,7 @@ export default function LandingPage() {
               THE PROCESS
             </p>
             <h2 className="text-[28px] font-semibold leading-[1.2] tracking-[-0.5px] text-[#111111] sm:text-[32px]">
-              From broken to back in your hands.
+              Eazy flow of how Clooval works
             </h2>
             <p className="mt-4 max-w-[680px] text-[16px] leading-[1.7] text-[#555555]">
               Here is exactly what happens after you submit a request.
@@ -664,90 +602,8 @@ export default function LandingPage() {
         <div className="mt-8 block border-t border-white/15 pt-6 text-center text-[12px] text-white/40 sm:hidden">
           © 2026 Clooval. All rights reserved.
         </div>
-        {showSupportWidget && (
-          <div className={`fixed bottom-5 right-5 z-50 flex flex-col items-end transition-all duration-300 ${supportOpen ? "space-y-4" : "space-y-0"}`}>
-            {supportOpen && (
-              <div className="w-[320px] rounded-[12px] border border-[#E5E5E3] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
-                <div className="flex items-center justify-between border-b border-[#E5E5E3] px-4 py-3">
-                  <p className="text-[14px] font-semibold text-[#111111]">Support</p>
-                  <button
-                    onClick={() => setSupportOpen(false)}
-                    className="text-[#999999] hover:text-[#111111]"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                <div className="p-4">
-                  {supportSuccess ? (
-                    <div className="text-center space-y-2">
-                      <CheckCircle size={24} className="text-[#111111] mx-auto" />
-                      <p className="text-[13px] text-[#111111] font-medium">Message sent!</p>
-                      <p className="text-[12px] text-[#999999]">We'll get back to you soon.</p>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleSupportSubmit} className="space-y-3">
-                      <textarea
-                        value={supportMessage}
-                        onChange={(e) => setSupportMessage(e.target.value)}
-                        placeholder="How can we help?"
-                        className="w-full resize-none rounded-[8px] border border-[#E5E5E3] bg-white px-3 py-2 text-[12px] text-[#111111] placeholder:text-[#999999] outline-none transition focus:border-2 focus:border-[#111111]"
-                        style={{ minHeight: 80, maxHeight: 120 }}
-                      />
-                      {supportError && <p className="text-[11px] text-[#D32F2F]">{supportError}</p>}
-                      <button
-                        type="submit"
-                        disabled={supportIsSubmitting || !supportMessage.trim()}
-                        className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-[6px] bg-[#111111] px-3 text-[12px] font-medium text-white transition hover:bg-[#333333] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Send size={14} />
-                        {supportIsSubmitting ? "Sending..." : "Send"}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => setSupportOpen(!supportOpen)}
-              className="rounded-full bg-[#111111] p-3 text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition hover:bg-[#333333]"
-            >
-              <MessageCircle size={20} />
-            </button>
-          </div>
-        )}
-        {footerTooltip && (
-          <div className="fixed bottom-24 right-5 z-50 inline-flex rounded-[6px] bg-[#333333] px-3 py-2 text-[12px] text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-            {footerTooltip}
-          </div>
-        )}
       </footer>
 
-      {/* PWA Install Banner */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E5E5E3] bg-white px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-[1100px]">
-          <p className="max-w-[420px] text-[13px] italic text-[#555555]">
-            Clooval works best as an app. Add it to your home screen for quick access.
-          </p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleFooterAndroidClick}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-[6px] bg-[#111111] px-4 text-[12px] font-medium text-white transition hover:bg-[#333333]"
-            >
-              <Smartphone className="h-4 w-4" />
-              Add to Home Screen
-            </button>
-            <button
-              type="button"
-              onClick={handleFooterIOSClick}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-[6px] border border-[#E5E5E3] bg-white px-4 text-[12px] font-medium text-[#111111] transition hover:bg-[#F7F7F5]"
-            >
-              <Apple className="h-4 w-4" />
-              iPhone: Share → Add to Home
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

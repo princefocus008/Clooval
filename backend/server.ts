@@ -363,6 +363,21 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === "production";
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
 
+  // CORS: allow the frontend dev server origin during development (minimal middleware)
+  const CORS_ORIGIN = process.env.VITE_API_URL || "http://localhost:5174";
+  app.use((req, res, next) => {
+    const originHeader = req.headers.origin;
+    console.log('CORS middleware:', req.method, 'Origin:', originHeader);
+    res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   // Rate limiter for request creation endpoint (prevent spam)
   const createRequestLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
@@ -463,41 +478,37 @@ async function startServer() {
     }
   });
 
+  const getAuthenticatedStudent = (req: express.Request): User | null => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "student") {
+      return null;
+    }
+    return user;
+  };
+
   // API Support Widget Route
   app.post("/api/support", supportFormLimiter, async (req, res) => {
-    const { name, email, category, message } = req.body;
-
-    if (typeof name !== "string" || typeof email !== "string" || typeof category !== "string" || typeof message !== "string") {
-      return res.status(400).json({ error: "All support fields are required." });
+    const user = getAuthenticatedStudent(req);
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized access" });
     }
 
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
+    const { category, message } = req.body;
+
+    if (typeof category !== "string" || typeof message !== "string") {
+      return res.status(400).json({ error: "Category and message are required." });
+    }
+
     const trimmedCategory = category.trim();
     const trimmedMessage = message.trim();
-
-    if (trimmedName.length < 2 || trimmedName.length > 100) {
-      return res.status(400).json({ error: "Name must be between 2 and 100 characters." });
-    }
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(trimmedEmail)) {
-      return res.status(400).json({ error: "A valid email address is required." });
-    }
-
-    const validCategories = [
-      "General Support",
-      "Repair Update",
-      "Billing / Payment",
-      "Other",
-    ];
+    const validCategories = ["Request help", "Tech issue", "Other"];
 
     if (!validCategories.includes(trimmedCategory)) {
       return res.status(400).json({ error: "Please select a valid support category." });
     }
 
-    if (trimmedMessage.length < 10 || trimmedMessage.length > 1000) {
-      return res.status(400).json({ error: "Message must be between 10 and 1000 characters." });
+    if (trimmedMessage.length < 10 || trimmedMessage.length > 500) {
+      return res.status(400).json({ error: "Message must be between 10 and 500 characters." });
     }
 
     const client = await pool.connect();
@@ -505,14 +516,14 @@ async function startServer() {
       await client.query("BEGIN");
       await client.query(
         `INSERT INTO support_messages (name, email, category, message) VALUES ($1, $2, $3, $4)`,
-        [trimmedName, trimmedEmail, trimmedCategory, trimmedMessage]
+        [user.name, user.email, trimmedCategory, trimmedMessage]
       );
       await client.query("COMMIT");
 
-      const subject = `New support request — ${trimmedCategory} from ${trimmedName}`;
+      const subject = `New support request — ${trimmedCategory} from ${user.name}`;
       const htmlContent = `
-        <p><strong>Name:</strong> ${trimmedName}</p>
-        <p><strong>Email:</strong> ${trimmedEmail}</p>
+        <p><strong>Name:</strong> ${user.name}</p>
+        <p><strong>Email:</strong> ${user.email}</p>
         <p><strong>Category:</strong> ${trimmedCategory}</p>
         <p><strong>Message:</strong></p>
         <p>${trimmedMessage.replace(/\n/g, "<br />")}</p>

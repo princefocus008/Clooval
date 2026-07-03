@@ -8,8 +8,11 @@ import axios from "axios";
 // Central Axios Client
 const API_BASE = (import.meta.env.VITE_API_URL as string) || "";
 
+// During local development, prefer the backend dev server on 3001 if VITE_API_URL isn't set.
+const DEV_FALLBACK = (typeof window !== "undefined" && window.location.hostname === "localhost") ? "http://localhost:3001" : "";
+
 export const api = axios.create({
-  baseURL: API_BASE ? `${API_BASE}/api` : "/api",
+  baseURL: API_BASE ? `${API_BASE}/api` : (DEV_FALLBACK ? `${DEV_FALLBACK}/api` : "/api"),
   headers: {
     "Content-Type": "application/json",
   },
