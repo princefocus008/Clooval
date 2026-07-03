@@ -559,20 +559,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="bg-[#111111] px-4 py-10 text-white sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-[1100px] flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[15px] font-semibold">Clooval</p>
-            <p className="mt-2 text-[12px] text-white/60">Campus Concierge · ALCHE, Mauritius</p>
-          </div>
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-8">
-            <p className="text-[12px] text-white/40">© 2025 Clooval. All rights reserved.</p>
-            <div className="flex flex-wrap items-center gap-4 text-[14px] text-white/60">
-              <a href="#contact" className="transition hover:text-white">Contact</a>
-              <a href="/login" className="transition hover:text-white">Log in</a>
-            </div>
-          </div>
-        </div>
-        <div className="mx-auto mt-8 flex max-w-[1100px] flex-col gap-10 pb-10 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:pb-12">
+        <div className="mx-auto flex max-w-[1100px] flex-col gap-10 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <div className="space-y-3">
             <p className="text-[15px] font-semibold">Clooval</p>
             <p className="text-[11px] uppercase tracking-[0.8px] text-white/50">Campus Concierge</p>
@@ -585,21 +572,17 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="flex flex-col items-start justify-center text-center sm:items-center sm:text-center">
-            <p className="text-[12px] text-white/40">© 2026 Clooval. All rights reserved.</p>
-            <div className="mt-4 hidden h-px w-full bg-white/15 sm:block" />
-          </div>
-
           <div className="flex flex-col gap-3 text-right sm:text-right">
             <p className="text-[13px] text-white/70">cloovalcontact@gmail.com</p>
             <p className="text-[13px] text-white/70">+230 5858 8285</p>
             <div className="flex flex-col gap-2 text-[13px] text-white/60">
+              <a href="#contact" className="transition hover:text-white hover:underline">Contact</a>
               <a href="#process" className="transition hover:text-white hover:underline">How it works</a>
               <a href="/login" className="transition hover:text-white hover:underline">Log in</a>
             </div>
           </div>
         </div>
-        <div className="mt-8 block border-t border-white/15 pt-6 text-center text-[12px] text-white/40 sm:hidden">
+        <div className="mt-8 border-t border-white/15 pt-6 text-center text-[12px] text-white/40">
           © 2026 Clooval. All rights reserved.
         </div>
       </footer>
