@@ -232,9 +232,9 @@ export default function RequestDetails() {
       <div className="flex items-center justify-between border-b border-[#E5E5E3] pb-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate(-1)}
             className="p-1.5 rounded-lg border border-[#E5E5E3] hover:bg-[#F7F7F5] text-[#555555] cursor-pointer transition"
-            aria-label="Back to dashboard"
+            aria-label="Go back"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>

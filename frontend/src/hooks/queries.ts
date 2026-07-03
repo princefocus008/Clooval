@@ -50,6 +50,8 @@ export function useRequest(id: string | undefined) {
     },
     enabled: !!id,
     staleTime: 10000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000,
   });
 }
 
