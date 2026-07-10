@@ -8,6 +8,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useRequests } from "../../hooks/queries";
 import { useAuthStore } from "../../lib/store";
 import { PriorityBadge, StatusBadge } from "../../components/ui/Badge";
+import RequestListSkeleton from "../../components/ui/RequestListSkeleton";
 import Skeleton from "../../components/ui/Skeleton";
 import {
   Smartphone,
