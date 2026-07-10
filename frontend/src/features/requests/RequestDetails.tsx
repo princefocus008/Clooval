@@ -4,10 +4,10 @@
  */
 
 import React, { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useRequest, useUpdateRequest, useRequests } from "../../hooks/queries";
 import { PriorityBadge, StatusBadge } from "../../components/ui/Badge";
-import Skeleton from "../../components/ui/Skeleton";
+import RequestDetailSkeleton from "../../components/ui/RequestDetailSkeleton";
 import { useToastStore } from "../../lib/store";
 import { CATEGORY_ICONS } from "./StudentHome";
 import RepairProgressTracker from "../../components/RepairProgressTracker";
@@ -45,9 +45,12 @@ const STAGES = [
 export default function RequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addToast } = useToastStore();
+  const optimisticState = location.state as { optimistic?: boolean; requestData?: any } | undefined;
+  const isOptimistic = optimisticState?.optimistic === true;
 
-  const { data: request, isLoading, error } = useRequest(id || "");
+  const { data: request, isLoading, error } = useRequest(isOptimistic ? undefined : (id || ""));
   const { data: allRequests } = useRequests();
   const updateMutation = useUpdateRequest(id || "");
 
@@ -62,17 +65,34 @@ export default function RequestDetails() {
   const [selectedDeclineReason, setSelectedDeclineReason] = useState("");
   const [customDeclineReason, setCustomDeclineReason] = useState("");
 
-  if (isLoading) {
+  if (isOptimistic && optimisticState?.requestData) {
     return (
       <div className="space-y-6 py-4 animate-slide-up">
-        <div className="flex gap-4 items-center">
-          <Skeleton width="40px" height="40px" />
-          <Skeleton width="150px" height="24px" />
+        <div className="rounded-2xl border border-[#E5E5E3] bg-[#F7F7F5] p-4 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#999999]">SUBMITTING REQUEST</p>
+              <h2 className="mt-2 text-lg font-semibold text-[#111111]">Your request is being sent</h2>
+            </div>
+            <span className="rounded-full border border-[#E5E5E3] bg-white px-3 py-1 text-[12px] text-[#555555]">Submitting…</span>
+          </div>
+          <p className="mt-3 text-sm text-[#555555]">We’re saving your repair request and will update this page as soon as it is confirmed.</p>
         </div>
-        <Skeleton width="100%" height="200px" />
-        <Skeleton width="100%" height="150px" />
+        <div className="rounded-2xl border border-[#E5E5E3] bg-white p-4 text-left">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-[#999999]">REQUEST SUMMARY</p>
+          <div className="mt-3 space-y-2 text-sm text-[#555555]">
+            <p><span className="font-semibold text-[#111111]">Category:</span> {optimisticState.requestData.category}</p>
+            <p><span className="font-semibold text-[#111111]">Priority:</span> {optimisticState.requestData.priority}</p>
+            <p><span className="font-semibold text-[#111111]">Status:</span> {optimisticState.requestData.status}</p>
+            <p><span className="font-semibold text-[#111111]">Description:</span> {optimisticState.requestData.description}</p>
+          </div>
+        </div>
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <RequestDetailSkeleton />;
   }
 
   if (error || !request) {

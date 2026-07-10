@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./lib/store";
@@ -36,18 +36,20 @@ import { UnifiedRequestFlow } from "./features/requests/guided/GuidedRequestFlow
 import Notifications from "./features/notifications/Notifications";
 import LandingPage from "./components/LandingPage";
 
-import AdminOverview from "./features/admin/AdminOverview";
-import AdminSupportInbox from "./features/admin/AdminSupportInbox";
-import AdminContactInbox from "./features/admin/AdminContactInbox";
-import AdminRequestsList from "./features/admin/AdminRequestsList";
-import AdminRequestDetails from "./features/admin/AdminRequestDetails";
-import Providers from "./features/admin/Providers";
-import AdminSettings from "./features/admin/Settings";
-import UsersAudit from "./features/admin/UsersAudit";
+const AdminOverview = lazy(() => import("./features/admin/AdminOverview"));
+const AdminSupportInbox = lazy(() => import("./features/admin/AdminSupportInbox"));
+const AdminContactInbox = lazy(() => import("./features/admin/AdminContactInbox"));
+const AdminRequestsList = lazy(() => import("./features/admin/AdminRequestsList"));
+const AdminRequestDetails = lazy(() => import("./features/admin/AdminRequestDetails"));
+const Providers = lazy(() => import("./features/admin/Providers"));
+const AdminSettings = lazy(() => import("./features/admin/Settings"));
+const UsersAudit = lazy(() => import("./features/admin/UsersAudit"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 30 * 1000,
+      gcTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
       retry: 1,
     },
@@ -73,7 +75,13 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AppRoutes isAuthenticated={isAuthenticated} user={user} />
+        <Suspense fallback={
+          <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="h-5 w-5 rounded-full border-2 border-[#E5E5E3] border-t-[#111111] animate-spin" />
+          </div>
+        }>
+          <AppRoutes isAuthenticated={isAuthenticated} user={user} />
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   );

@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
@@ -8,6 +9,7 @@ import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { sendEmail } from "../frontend/src/services/emailService";
 // Vite is only used during local development. We avoid a static import
 // so production bundles don't include Vite and its path-logic (which
@@ -46,9 +48,97 @@ if (!DATABASE_URL) {
 }
 
 // Set up PostgreSQL client pool
-const pool = new Pool({
+const poolConfig: any = {
   connectionString: DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+};
+
+if (DATABASE_URL.includes("sslmode=require") || DATABASE_URL.includes("ssl=true")) {
+  poolConfig.ssl = { rejectUnauthorized: false };
+} else {
+  poolConfig.ssl = false;
+}
+
+const pool = new Pool(poolConfig);
+
+pool.on("error", (err) => {
+  console.error("Unexpected database pool error:", err);
 });
+
+if (process.env.NODE_ENV === "production") {
+  setInterval(() => {
+    console.log("Pool status:", {
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount,
+    });
+    if (pool.waitingCount > 0) {
+      console.warn(`WARNING: ${pool.waitingCount} queries waiting for a DB connection`);
+    }
+  }, 5 * 60 * 1000);
+}
+
+const cache = new Map<string, { data: unknown; expiresAt: number }>();
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10);
+}
+
+async function comparePassword(password: string, storedHash: string | null | undefined): Promise<boolean> {
+  if (!storedHash) return false;
+  if (storedHash.startsWith("$2")) {
+    return bcrypt.compare(password, storedHash);
+  }
+  return password === storedHash;
+}
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T, ttlSeconds: number): void {
+  cache.set(key, {
+    data,
+    expiresAt: Date.now() + ttlSeconds * 1000,
+  });
+}
+
+function invalidateCache(pattern: string): void {
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) {
+      cache.delete(key);
+    }
+  }
+}
+
+async function initializeDatabaseIndexes() {
+  try {
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_requests_student_id ON requests(student_id);
+      CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
+      CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_requests_status_created ON requests(status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(student_id);
+      CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(student_id, is_read) WHERE is_read = false;
+      CREATE INDEX IF NOT EXISTS idx_support_created_at ON support_messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_support_unread ON support_messages(is_read) WHERE is_read = false;
+      CREATE INDEX IF NOT EXISTS idx_contact_created_at ON contact_messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_contact_unread ON contact_messages(is_read) WHERE is_read = false;
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    `);
+    console.log("Database indexes initialized");
+  } catch (error) {
+    console.error("Failed to initialize database indexes:", error);
+  }
+}
 
 // Initialize push subscriptions table if it doesn't exist
 async function initializePushSubscriptionsTable() {
@@ -120,10 +210,12 @@ async function ensureAdminUserExists() {
 
     if (existingAdmin.rows.length > 0) {
       const currentPassword = existingAdmin.rows[0].password_hash;
-      if (currentPassword !== ADMIN_PASSWORD) {
+      const passwordMatches = await comparePassword(ADMIN_PASSWORD, currentPassword);
+      if (!passwordMatches) {
+        const hashedAdminPassword = await hashPassword(ADMIN_PASSWORD);
         await pool.query(
           "UPDATE users SET password_hash = $1 WHERE id = $2",
-          [ADMIN_PASSWORD, existingAdmin.rows[0].id]
+          [hashedAdminPassword, existingAdmin.rows[0].id]
         );
         console.log(`Admin password for ${ADMIN_EMAIL} was updated to the current backend default.`);
       }
@@ -131,6 +223,7 @@ async function ensureAdminUserExists() {
     }
 
     const adminId = "admin-" + Math.random().toString(36).substring(2, 11);
+    const hashedAdminPassword = await hashPassword(ADMIN_PASSWORD);
     await pool.query(
       `INSERT INTO users (
         id, name, email, student_id, role, phone, nationality, programme_of_study, resident,
@@ -146,7 +239,7 @@ async function ensureAdminUserExists() {
         null,
         null,
         null,
-        ADMIN_PASSWORD,
+        hashedAdminPassword,
       ]
     );
 
@@ -355,6 +448,22 @@ async function startServer() {
   // Initialize database tables on startup
   await initializePushSubscriptionsTable();
 
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (duration > 500) {
+        console.warn(`SLOW REQUEST: ${req.method} ${req.path} — ${duration}ms`);
+      }
+    });
+    next();
+  });
+
+  app.use(compression({
+    threshold: 1024,
+    level: 6,
+  }));
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Security: basic hardening headers
@@ -405,6 +514,7 @@ async function startServer() {
 
   await initializeContactMessagesTable();
   await initializeSupportMessagesTable();
+  await initializeDatabaseIndexes();
   await ensureAdminUserExists();
 
   // API Contact Form Route
@@ -577,6 +687,7 @@ async function startServer() {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, true, true, true, NOW())
         RETURNING *
       `;
+      const passwordHash = await hashPassword(password);
       const values = [
         newUserId,
         name,
@@ -587,7 +698,7 @@ async function startServer() {
         nationality || null,
         programmeOfStudy || null,
         resident,
-        password
+        passwordHash
       ];
 
       const userRes = await client.query(insertQuery, values);
@@ -631,7 +742,8 @@ async function startServer() {
       }
 
       const existing = userRes.rows[0];
-      if (existing.password_hash !== password) {
+      const passwordMatches = await comparePassword(password, existing.password_hash);
+      if (!passwordMatches) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
@@ -971,9 +1083,24 @@ async function startServer() {
     try {
       let result;
       if (user.role === "admin") {
-        result = await pool.query("SELECT * FROM requests ORDER BY created_at DESC");
+        result = await pool.query(`
+          SELECT id, student_id, student_name, student_email, student_phone, category, description, photos,
+                 issues, priority, additional_notes, status, provider_cost, service_charge, total_cost,
+                 is_quote_accepted, deposit_paid, final_paid, ready_notes, operator_notes, internal_notes,
+                 provider_id, provider_translation, cancel_reason, created_at
+          FROM requests
+          ORDER BY created_at DESC
+        `);
       } else {
-        result = await pool.query("SELECT * FROM requests WHERE student_id = $1 ORDER BY created_at DESC", [user.id]);
+        result = await pool.query(`
+          SELECT id, student_id, student_name, student_email, student_phone, category, description, photos,
+                 issues, priority, additional_notes, status, provider_cost, service_charge, total_cost,
+                 is_quote_accepted, deposit_paid, final_paid, ready_notes, operator_notes, internal_notes,
+                 provider_id, provider_translation, cancel_reason, created_at
+          FROM requests
+          WHERE student_id = $1
+          ORDER BY created_at DESC
+        `, [user.id]);
       }
       const requests = result.rows.map(mapRequest);
       res.json(requests);
@@ -987,7 +1114,14 @@ async function startServer() {
   app.get("/api/requests/:id", async (req, res) => {
     const id = req.params.id;
     try {
-      const result = await pool.query("SELECT * FROM requests WHERE id = $1", [id]);
+      const result = await pool.query(`
+        SELECT id, student_id, student_name, student_email, student_phone, category, description, photos,
+               issues, priority, additional_notes, status, provider_cost, service_charge, total_cost,
+               is_quote_accepted, deposit_paid, final_paid, ready_notes, operator_notes, internal_notes,
+               provider_id, provider_translation, cancel_reason, created_at
+        FROM requests
+        WHERE id = $1
+      `, [id]);
       if (result.rows.length === 0) {
         return res.status(404).json({ error: "Request not found" });
       }
@@ -1004,6 +1138,15 @@ async function startServer() {
     if (!user) {
       return res.status(401).json({ error: "Unauthorized access" });
     }
+
+    const timeoutId = setTimeout(() => {
+      if (!res.headersSent) {
+        res.status(504).json({
+          success: false,
+          error: { code: "TIMEOUT", detail: "Request timed out. Please try again." },
+        });
+      }
+    }, 10000);
 
     const { category, description, photos, priority, additionalNotes, studentPhone, behalfStudentId } = req.body;
     if (!category || !description) {
@@ -1725,14 +1868,22 @@ async function startServer() {
     }
 
     try {
+      const cacheKey = "providers_list";
+      const cached = getCached<Provider[]>(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const result = await pool.query(
-        `SELECT p.*, COUNT(r.id) AS request_count
+        `SELECT p.id, p.name, p.phone, p.specialty, p.notes, p.rating, p.created_at, COUNT(r.id) AS request_count
          FROM providers p
          LEFT JOIN requests r ON r.provider_id = p.id
          GROUP BY p.id
          ORDER BY p.created_at DESC`
       );
-      res.json(result.rows.map(mapProvider));
+      const providers = result.rows.map(mapProvider);
+      setCached(cacheKey, providers, 300);
+      res.json(providers);
     } catch (err: any) {
       console.error("Get providers error:", err);
       res.status(500).json({ error: "Internal server error: " + err.message });
@@ -1830,7 +1981,12 @@ async function startServer() {
         }
       }
 
-      const result = await pool.query("SELECT * FROM notifications WHERE student_id = $1 ORDER BY created_at DESC", [targetId]);
+      const result = await pool.query(`
+        SELECT id, student_id, title, body, is_read, created_at, request_id, amount
+        FROM notifications
+        WHERE student_id = $1
+        ORDER BY created_at DESC
+      `, [targetId]);
       res.json(result.rows.map(mapNotification));
     } catch (err: any) {
       console.error("Get notifications error:", err);

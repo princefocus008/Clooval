@@ -26,6 +26,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.form-active {
+  overscroll-behavior-y: none;
+}
+
 input,
 textarea,
 select {

@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../lib/store";
 import { useNotifications, useMarkNotificationsRead, useMarkNotificationRead } from "../../hooks/queries";
-import Skeleton from "../../components/ui/Skeleton";
+import RequestListSkeleton from "../../components/ui/RequestListSkeleton";
 import { Bell, Inbox, CheckCheck, ChevronDown, ChevronUp, ArrowUpRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 

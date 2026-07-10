@@ -9,6 +9,7 @@ import { useRequests, useNotifications, useAdminUsers, useAdminActivities } from
 import { Clock, AlertTriangle, CheckSquare, Inbox, Calendar, ArrowRight, Search, User, MapPin, Mail, Phone, BookOpen, Activity, ListFilter, Bell, ChevronLeft, ChevronRight, RefreshCw, Filter } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import Skeleton from "../../components/ui/Skeleton";
+import AdminOverviewSkeleton from "../../components/ui/AdminOverviewSkeleton";
 import { StatusBadge } from "../../components/ui/Badge";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 
@@ -97,6 +98,10 @@ export default function AdminOverview() {
   }) || [];
 
   const selectedUserObj = adminUsers?.find(u => u.id === selectedUserId) || null;
+
+  if (requestsLoading || usersLoading || activitiesLoading) {
+    return <AdminOverviewSkeleton />;
+  }
 
   return (
     <div className="space-y-8 animate-slide-up">

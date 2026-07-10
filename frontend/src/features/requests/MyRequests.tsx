@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRequests } from "../../hooks/queries";
 import { PriorityBadge, StatusBadge } from "../../components/ui/Badge";
-import Skeleton from "../../components/ui/Skeleton";
+import RequestListSkeleton from "../../components/ui/RequestListSkeleton";
 import { CATEGORY_ICONS } from "./StudentHome";
 import { HelpCircle, Clock, ChevronRight, Inbox, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -94,20 +94,7 @@ export default function MyRequests() {
       {/* LIST SECTION */}
       <section className="space-y-4">
         {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="flex gap-4 items-center justify-between pb-4 border-b border-[#E5E5E3]">
-                <div className="flex gap-3 items-center">
-                  <Skeleton width="40px" height="40px" borderRadius="100%" />
-                  <div className="space-y-2">
-                    <Skeleton width="180px" height="15px" />
-                    <Skeleton width="120px" height="12px" />
-                  </div>
-                </div>
-                <Skeleton width="80px" height="24px" />
-              </div>
-            ))}
-          </div>
+          <RequestListSkeleton />
         ) : error ? (
           <div className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center justify-between">
             <span className="text-sm">Failed to load request list.</span>

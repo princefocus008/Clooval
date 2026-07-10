@@ -2,6 +2,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../../../lib/store';
 import { useCreateRequest } from '../../../hooks/queries';
+import { usePersistedFormState } from '../../../hooks/usePersistedFormState';
 import { PhoneFlow } from './PhoneFlow';
 import { LaptopFlow } from './LaptopFlow';
 import { AccessoriesFlow } from './AccessoriesFlow';
@@ -122,7 +123,7 @@ export function UnifiedRequestFlow() {
   const categoryParam = params.category as RequestCategory | undefined;
   const initialCategory = categoryParam && VALID_CATEGORIES.includes(categoryParam) ? categoryParam : null;
 
-  const [requestState, setRequestState] = useState<RequestFlowState>(() => createInitialState(initialCategory));
+  const [requestState, setRequestState, clearDraft] = usePersistedFormState<RequestFlowState>(createInitialState(initialCategory));
   const [currentStep, setCurrentStep] = useState(0);
   const [animationClass, setAnimationClass] = useState('step-enter-active');
   const [renderKey, setRenderKey] = useState(`step-${categoryParam || 'select'}-0`);
@@ -131,6 +132,8 @@ export function UnifiedRequestFlow() {
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftBannerVisible, setDraftBannerVisible] = useState(false);
   const detailsTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousCategoryParam = useRef<RequestCategory | undefined>(categoryParam);
 
@@ -173,6 +176,88 @@ export function UnifiedRequestFlow() {
       setRequestState((prev) => ({ ...prev, phoneNumber: user.phone || '' }));
     }
   }, [activeStep, user?.phone, requestState.phoneNumber]);
+
+  useEffect(() => {
+    const originalOverscroll = document.body.style.overscrollBehavior;
+    const originalDocumentOverscroll = document.documentElement.style.overscrollBehavior;
+    document.body.classList.add('form-active');
+    document.body.style.overscrollBehavior = 'none';
+    document.documentElement.style.overscrollBehavior = 'none';
+
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS) {
+      let startY = 0;
+      const handleTouchStart = (event: TouchEvent) => {
+        startY = event.touches[0]?.clientY ?? 0;
+      };
+      const handleTouchMove = (event: TouchEvent) => {
+        const currentY = event.touches[0]?.clientY ?? 0;
+        const deltaY = currentY - startY;
+        if (window.scrollY === 0 && deltaY > 10 && event.cancelable) {
+          event.preventDefault();
+        }
+      };
+
+      document.addEventListener('touchstart', handleTouchStart, { passive: true });
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+      return () => {
+        document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.body.classList.remove('form-active');
+        document.body.style.overscrollBehavior = originalOverscroll;
+        document.documentElement.style.overscrollBehavior = originalDocumentOverscroll;
+      };
+    }
+
+    return () => {
+      document.body.classList.remove('form-active');
+      document.body.style.overscrollBehavior = originalOverscroll;
+      document.documentElement.style.overscrollBehavior = originalDocumentOverscroll;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const savedDraft = window.sessionStorage.getItem('clooval_request_draft');
+    if (!savedDraft) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(savedDraft);
+      const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+      if (parsed._savedAt && parsed._savedAt > twoHoursAgo) {
+        setDraftRestored(true);
+        setDraftBannerVisible(true);
+      }
+    } catch {
+      window.sessionStorage.removeItem('clooval_request_draft');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftBannerVisible) {
+      return;
+    }
+
+    const hideBanner = () => setDraftBannerVisible(false);
+    const timer = window.setTimeout(hideBanner, 5000);
+
+    document.addEventListener('mousedown', hideBanner, { passive: true });
+    document.addEventListener('touchstart', hideBanner, { passive: true });
+    document.addEventListener('keydown', hideBanner, { passive: true });
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('mousedown', hideBanner);
+      document.removeEventListener('touchstart', hideBanner);
+      document.removeEventListener('keydown', hideBanner);
+    };
+  }, [draftBannerVisible]);
 
   useEffect(() => {
     if (detailsTextareaRef.current) {
@@ -366,7 +451,7 @@ export function UnifiedRequestFlow() {
     return resolveIssueLabels(requestState.issueType, requestState.customIssue).join(', ');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!requestState.category) return;
 
     setSubmitError(null);
@@ -385,14 +470,28 @@ export function UnifiedRequestFlow() {
       photos: requestState.photos,
     } as any;
 
-    createMutation.mutate(payload, {
-      onSuccess: (newRequest) => {
-        navigate(`/app/requests/${newRequest.id}`);
-      },
-      onError: (error: any) => {
-        setSubmitError(error?.message || 'Something went wrong. Please try again.');
+    const tempId = `temp_${Date.now()}`;
+    clearDraft();
+    navigate(`/app/requests/${tempId}`, {
+      state: {
+        optimistic: true,
+        requestData: {
+          category: requestState.category,
+          description: requestState.description.trim(),
+          priority: requestState.priority,
+          status: 'submitted',
+          createdAt: new Date().toISOString(),
+        },
       },
     });
+
+    try {
+      const newRequest = await createMutation.mutateAsync(payload);
+      navigate(`/app/requests/${newRequest.id}`, { replace: true });
+    } catch (error: any) {
+      navigate(-1);
+      setSubmitError(error?.message || 'Something went wrong. Please try again.');
+    }
   };
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -688,6 +787,19 @@ export function UnifiedRequestFlow() {
 
   const isSubmitting = createMutation.isPending;
 
+  const handleDraftReset = () => {
+    clearDraft();
+    setDraftRestored(false);
+    setDraftBannerVisible(false);
+    setRequestState(createInitialState(requestState.category));
+    setCurrentStep(0);
+    setAnimationClass('step-enter-active');
+    setRenderKey(`step-${requestState.category || 'select'}-0`);
+    setDetailsErrors({ description: '', phoneNumber: '', photos: '' });
+    setConfirmChecked(false);
+    setSubmitError(null);
+  };
+
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-[#111111] pb-[92px]">
       <div className="sticky top-0 z-50 bg-white">
@@ -703,6 +815,21 @@ export function UnifiedRequestFlow() {
       </div>
 
       <main className="mx-auto mt-6 max-w-4xl px-4 pb-[92px] pt-0 sm:px-6">
+        {draftRestored && draftBannerVisible ? (
+          <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#E5E5E3] bg-[#F1F2E9] px-4 py-3 sm:px-5">
+            <div>
+              <p className="text-[13px] font-medium text-[#111111]">Draft restored</p>
+              <p className="text-[12px] text-[#555555]">Your previous progress was saved.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDraftReset}
+              className="text-[12px] text-[#999999] underline underline-offset-2 transition hover:text-[#111111]"
+            >
+              Start fresh
+            </button>
+          </div>
+        ) : null}
         <div key={renderKey} className={`unified-step-wrapper transition-all ${animationClass}`}>
           {renderCurrentStep()}
         </div>

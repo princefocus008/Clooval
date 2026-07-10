@@ -4,28 +4,30 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-  "dev": "tsx backend/server.ts",
-  "dev:frontend": "cd frontend && vite",
-  "dev:backend": "tsx backend/server.ts",
-  "db:import": "node scripts/import_to_pg.cjs",
-  "build:frontend": "cd frontend && vite build --outDir ../dist-frontend",
-  "build:backend": "esbuild backend/server.ts --bundle --platform=node --format=cjs --sourcemap --outfile=dist-backend/server.cjs",
-  "build": "npm run build:frontend && npm run build:backend",
-  "start": "node dist-backend/server.cjs",
-  "preview": "vite preview --config frontend/vite.config.ts",
-  "clean": "rm -rf dist dist-backend dist-frontend clooval_db.json",
-  "lint": "tsc --noEmit",
-  "generate-vapid": "node scripts/generate-vapid.mjs"
-},
+    "dev": "tsx backend/server.ts",
+    "dev:frontend": "cd frontend && vite",
+    "dev:backend": "tsx backend/server.ts",
+    "db:import": "node scripts/import_to_pg.cjs",
+    "build:frontend": "cd frontend && vite build --outDir ../dist-frontend",
+    "build:backend": "esbuild backend/server.ts --bundle --platform=node --format=cjs --sourcemap --outfile=dist-backend/server.cjs",
+    "build": "npm run build:frontend && npm run build:backend",
+    "start": "node dist-backend/server.cjs",
+    "preview": "vite preview --config frontend/vite.config.ts",
+    "clean": "rm -rf dist dist-backend dist-frontend clooval_db.json",
+    "lint": "tsc --noEmit",
+    "generate-vapid": "node scripts/generate-vapid.mjs"
+  },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@hookform/resolvers": "^5.4.0",
     "@sendgrid/mail": "^8.1.6",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-query": "^5.101.0",
+    "@types/compression": "^1.8.1",
     "@vitejs/plugin-react": "^5.0.4",
     "axios": "^1.17.0",
     "bcryptjs": "^2.4.3",
+    "compression": "^1.8.1",
     "date-fns": "^4.4.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -62,4 +64,3 @@
     "vite": "^6.2.3"
   }
 }
-
