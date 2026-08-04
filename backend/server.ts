@@ -637,20 +637,37 @@ async function startServer() {
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
 
   // CORS: allow the active frontend origins for both development and production.
-  const allowedOrigins = [
+  const normalizeOrigin = (value: string | undefined) => {
+    if (!value) return undefined;
+    try {
+      return new URL(value).origin;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const allowedOrigins = new Set([
     "https://clooval.com",
     "https://www.clooval.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     process.env.FRONTEND_URL,
     process.env.VITE_API_URL,
-  ].filter(Boolean) as string[];
+  ]
+    .map(normalizeOrigin)
+    .filter((value): value is string => Boolean(value)));
 
   const isAllowedOrigin = (origin: string | undefined) => {
     if (!origin) return false;
     try {
       const parsed = new URL(origin);
-      return allowedOrigins.includes(parsed.origin);
+      const originKey = parsed.origin;
+      if (allowedOrigins.has(originKey)) {
+        return true;
+      }
+
+      const hostname = parsed.hostname.toLowerCase();
+      return hostname === "clooval.com" || hostname.endsWith(".clooval.com") || hostname.endsWith(".vercel.app");
     } catch {
       return false;
     }
@@ -660,12 +677,12 @@ async function startServer() {
     const originHeader = req.headers.origin;
     const allowedOrigin = isAllowedOrigin(originHeader)
       ? originHeader
-      : (process.env.FRONTEND_URL || "http://localhost:5173");
+      : (process.env.FRONTEND_URL || "https://www.clooval.com");
 
     console.log("CORS middleware:", req.method, "Origin:", originHeader, "->", allowedOrigin);
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Credentials", "true");
     if (req.method === "OPTIONS") {

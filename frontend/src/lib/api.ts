@@ -6,12 +6,14 @@
 import axios from "axios";
 
 // Central Axios Client
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || "";
+const API_BASE_RAW = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || "";
+const API_BASE = API_BASE_RAW.replace(/\/+$/, "");
 const isDev = import.meta.env.DEV;
 
 // In local development, always prefer the Vite proxy so auth and other API requests
 // use the active backend without depending on a mismatched hard-coded port.
-const baseURL = isDev ? "/api" : (API_BASE ? `${API_BASE}/api` : "/api");
+const normalizedBase = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`;
+const baseURL = isDev ? "/api" : (API_BASE ? normalizedBase : "/api");
 
 if (isDev) {
   console.log("API client baseURL:", baseURL);
