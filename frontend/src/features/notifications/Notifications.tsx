@@ -10,6 +10,7 @@ import { useNotifications, useMarkNotificationsRead, useMarkNotificationRead } f
 import RequestListSkeleton from "../../components/ui/RequestListSkeleton";
 import { Bell, Inbox, CheckCheck, ChevronDown, ChevronUp, ArrowUpRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import Skeleton from "../../components/ui/Skeleton";
 
 export default function Notifications() {
   const navigate = useNavigate();

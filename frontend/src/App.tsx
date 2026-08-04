@@ -36,6 +36,13 @@ import { UnifiedRequestFlow } from "./features/requests/guided/GuidedRequestFlow
 import Notifications from "./features/notifications/Notifications";
 import LandingPage from "./components/LandingPage";
 
+const ShopHome = lazy(() => import("./features/shop/ShopHome"));
+const CategoryPage = lazy(() => import("./features/shop/CategoryPage"));
+const ProductDetail = lazy(() => import("./features/shop/ProductDetail"));
+const CartPage = lazy(() => import("./features/shop/CartPage"));
+const OrderHistory = lazy(() => import("./features/shop/OrderHistory"));
+const OrderDetail = lazy(() => import("./features/shop/OrderDetail"));
+
 const AdminOverview = lazy(() => import("./features/admin/AdminOverview"));
 const AdminSupportInbox = lazy(() => import("./features/admin/AdminSupportInbox"));
 const AdminContactInbox = lazy(() => import("./features/admin/AdminContactInbox"));
@@ -44,6 +51,7 @@ const AdminRequestDetails = lazy(() => import("./features/admin/AdminRequestDeta
 const Providers = lazy(() => import("./features/admin/Providers"));
 const AdminSettings = lazy(() => import("./features/admin/Settings"));
 const UsersAudit = lazy(() => import("./features/admin/UsersAudit"));
+const AdminShop = lazy(() => import("./features/admin/shop/AdminShop"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +122,21 @@ function AppRoutes({ isAuthenticated, user }: { isAuthenticated: boolean; user: 
           <Route path="requests/:id" element={<RequestDetails />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="shop" element={<ShopHome />} />
+          <Route path="shop/category/:slug" element={<CategoryPage />} />
+          <Route path="shop/product/:slug" element={<ProductDetail />} />
+          <Route path="shop/cart" element={<CartPage />} />
+          <Route path="shop/orders" element={<OrderHistory />} />
+          <Route path="shop/orders/:id" element={<OrderDetail />} />
+        </Route>
+
+        <Route path="/shop" element={<StudentLayout />}>
+          <Route index element={<Navigate to="/app/shop" replace />} />
+          <Route path="category/:slug" element={<Navigate to="/app/shop/category/:slug" replace />} />
+          <Route path="product/:slug" element={<Navigate to="/app/shop/product/:slug" replace />} />
+          <Route path="cart" element={<Navigate to="/app/shop/cart" replace />} />
+          <Route path="orders" element={<Navigate to="/app/shop/orders" replace />} />
+          <Route path="orders/:id" element={<Navigate to="/app/shop/orders/:id" replace />} />
         </Route>
 
         {/* Admin Protected Operations */}
@@ -123,6 +146,12 @@ function AppRoutes({ isAuthenticated, user }: { isAuthenticated: boolean; user: 
           <Route path="contact" element={<AdminContactInbox />} />
           <Route path="requests" element={<AdminRequestsList />} />
           <Route path="requests/:id" element={<AdminRequestDetails />} />
+          <Route path="shop" element={<AdminShop />} />
+          <Route path="shop/products" element={<AdminShop />} />
+          <Route path="shop/products/new" element={<AdminShop />} />
+          <Route path="shop/products/:productId/edit" element={<AdminShop />} />
+          <Route path="shop/orders" element={<AdminShop />} />
+          <Route path="shop/orders/:orderId" element={<AdminShop />} />
           <Route path="users" element={<UsersAudit />} />
           <Route path="providers" element={<Providers />} />
           <Route path="settings" element={<AdminSettings />} />

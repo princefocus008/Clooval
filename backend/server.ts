@@ -10,6 +10,8 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 import { sendEmail } from "../frontend/src/services/emailService";
 // Vite is only used during local development. We avoid a static import
 // so production bundles don't include Vite and its path-logic (which
@@ -81,6 +83,21 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const cache = new Map<string, { data: unknown; expiresAt: number }>();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 4 },
+});
+
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+} else {
+  console.warn("Cloudinary credentials missing; shop image uploads will be unavailable.");
+}
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -248,6 +265,153 @@ async function ensureAdminUserExists() {
   } catch (error) {
     console.error("Failed to ensure admin user exists:", error);
   }
+}
+
+async function ensureShopTablesExist() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shop_categories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT,
+        display_order INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS shop_products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        category_id UUID NOT NULL REFERENCES shop_categories(id) ON DELETE RESTRICT,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT,
+        price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+        stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+        is_available BOOLEAN NOT NULL DEFAULT true,
+        is_featured BOOLEAN NOT NULL DEFAULT false,
+        image_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+        specs JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS shop_cart_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES shop_products(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+        added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(student_id, product_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS shop_orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'ready_for_collection', 'completed', 'cancelled')),
+        total_amount NUMERIC(10, 2) NOT NULL,
+        notes TEXT,
+        admin_notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS shop_order_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES shop_orders(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES shop_products(id) ON DELETE RESTRICT,
+        product_name VARCHAR(255) NOT NULL,
+        product_price NUMERIC(10, 2) NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        line_total NUMERIC(10, 2) NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_shop_products_category ON shop_products(category_id);
+      CREATE INDEX IF NOT EXISTS idx_shop_products_available ON shop_products(is_available) WHERE is_available = true;
+      CREATE INDEX IF NOT EXISTS idx_shop_products_featured ON shop_products(is_featured) WHERE is_featured = true;
+      CREATE INDEX IF NOT EXISTS idx_shop_cart_student ON shop_cart_items(student_id);
+      CREATE INDEX IF NOT EXISTS idx_shop_orders_student ON shop_orders(student_id);
+      CREATE INDEX IF NOT EXISTS idx_shop_orders_status ON shop_orders(status);
+      CREATE INDEX IF NOT EXISTS idx_shop_order_items_order ON shop_order_items(order_id);
+    `);
+    console.log("Shop tables initialized");
+  } catch (error) {
+    console.error("Failed to initialize shop tables:", error);
+  }
+}
+
+async function seedShopData() {
+  try {
+    const { rows } = await pool.query("SELECT COUNT(*) FROM shop_categories");
+    if (parseInt(rows[0].count, 10) > 0) {
+      return;
+    }
+
+    await pool.query(`
+      INSERT INTO shop_categories (name, slug, description, display_order)
+      VALUES
+        ('Charging', 'charging', 'Chargers, cables, and power accessories', 1),
+        ('Audio', 'audio', 'Earphones, earbuds, and Bluetooth speakers', 2),
+        ('Phone Accessories', 'phone-accessories', 'Screen guards, cases, and phone essentials', 3),
+        ('Computer Accessories', 'computer-accessories', 'Mice, keyboards, flash drives, and laptop gear', 4),
+        ('Power & Connectivity', 'power-connectivity', 'Extension cables, power banks, and adapters', 5),
+        ('Other Electronics', 'other-electronics', 'Other useful electronics for students', 6)
+    `);
+
+    const cats = await pool.query("SELECT id, slug FROM shop_categories");
+    const catMap = Object.fromEntries(cats.rows.map((row: any) => [row.slug, row.id]));
+
+    const productSeedData = [
+      { categorySlug: 'charging', name: 'USB-C Charger (20W)', slug: 'usb-c-charger-20w', description: 'Fast charging USB-C adapter compatible with most modern phones and laptops.', price: 450, stock_quantity: 15, is_featured: true },
+      { categorySlug: 'charging', name: 'iPhone Lightning Cable (1m)', slug: 'lightning-cable-1m', description: 'Durable MFi-certified Lightning cable.', price: 250, stock_quantity: 20, is_featured: false },
+      { categorySlug: 'charging', name: 'USB-C to USB-C Cable (1m)', slug: 'usb-c-cable-1m', description: 'Fast-charging USB-C cable, compatible with Android and MacBook.', price: 200, stock_quantity: 25, is_featured: false },
+      { categorySlug: 'charging', name: 'Laptop Charger (Universal)', slug: 'laptop-charger-universal', description: '65W universal laptop charger with multiple tips.', price: 1200, stock_quantity: 8, is_featured: true },
+      { categorySlug: 'audio', name: 'Wired Earphones (USB-C)', slug: 'wired-earphones-usbc', description: 'Clear audio wired earphones with USB-C connector.', price: 350, stock_quantity: 20, is_featured: false },
+      { categorySlug: 'audio', name: 'Wired Earphones (3.5mm)', slug: 'wired-earphones-3-5mm', description: 'Standard 3.5mm earphones with microphone.', price: 250, stock_quantity: 20, is_featured: false },
+      { categorySlug: 'audio', name: 'Wireless Earbuds', slug: 'wireless-earbuds', description: 'Bluetooth 5.0 earbuds with charging case. Up to 4 hours playback.', price: 1500, stock_quantity: 10, is_featured: true },
+      { categorySlug: 'audio', name: 'Bluetooth Speaker (Portable)', slug: 'bluetooth-speaker-portable', description: 'Compact Bluetooth speaker with 6-hour battery. Water resistant.', price: 2200, stock_quantity: 6, is_featured: true },
+      { categorySlug: 'phone-accessories', name: 'Screen Protector (Universal)', slug: 'screen-protector-universal', description: 'Tempered glass screen protector. Fits most Android phones.', price: 150, stock_quantity: 30, is_featured: false },
+      { categorySlug: 'phone-accessories', name: 'iPhone Screen Protector', slug: 'screen-protector-iphone', description: 'Tempered glass screen protector for iPhone 13/14/15 series.', price: 200, stock_quantity: 25, is_featured: false },
+      { categorySlug: 'phone-accessories', name: 'Phone Stand (Adjustable)', slug: 'phone-stand-adjustable', description: 'Foldable aluminium phone stand for desk use.', price: 400, stock_quantity: 15, is_featured: false },
+      { categorySlug: 'phone-accessories', name: 'OTG Adapter (USB-C to USB)', slug: 'otg-adapter-usbc', description: 'Connect USB drives and accessories to your USB-C phone.', price: 150, stock_quantity: 20, is_featured: false },
+      { categorySlug: 'computer-accessories', name: 'Wireless Mouse', slug: 'wireless-mouse', description: 'Compact 2.4GHz wireless mouse with USB nano receiver.', price: 800, stock_quantity: 12, is_featured: true },
+      { categorySlug: 'computer-accessories', name: 'USB Flash Drive (32GB)', slug: 'flash-drive-32gb', description: 'USB 3.0 flash drive, 32GB storage.', price: 400, stock_quantity: 25, is_featured: false },
+      { categorySlug: 'computer-accessories', name: 'USB Flash Drive (64GB)', slug: 'flash-drive-64gb', description: 'USB 3.0 flash drive, 64GB storage.', price: 650, stock_quantity: 20, is_featured: false },
+      { categorySlug: 'computer-accessories', name: 'USB Hub (4-Port)', slug: 'usb-hub-4-port', description: '4-port USB 3.0 hub for laptops with limited ports.', price: 600, stock_quantity: 15, is_featured: false },
+      { categorySlug: 'computer-accessories', name: 'Laptop Cooling Pad', slug: 'laptop-cooling-pad', description: 'Portable laptop cooling stand with built-in fan.', price: 900, stock_quantity: 8, is_featured: false },
+      { categorySlug: 'computer-accessories', name: 'Laptop Bag (15 inch)', slug: 'laptop-bag-15inch', description: 'Water-resistant laptop bag fitting up to 15-inch laptops.', price: 1800, stock_quantity: 10, is_featured: false },
+      { categorySlug: 'power-connectivity', name: 'Extension Cable (4-Socket)', slug: 'extension-cable-4-socket', description: '4-socket extension cord with surge protection. 1.5m cable.', price: 700, stock_quantity: 15, is_featured: true },
+      { categorySlug: 'power-connectivity', name: 'Power Bank (10000mAh)', slug: 'power-bank-10000mah', description: '10,000mAh power bank with dual USB output.', price: 1600, stock_quantity: 10, is_featured: true },
+      { categorySlug: 'power-connectivity', name: 'Power Bank (5000mAh)', slug: 'power-bank-5000mah', description: 'Slim 5,000mAh power bank. Fits in a pocket.', price: 900, stock_quantity: 12, is_featured: false },
+      { categorySlug: 'power-connectivity', name: 'HDMI Cable (1.5m)', slug: 'hdmi-cable-1-5m', description: 'HDMI 2.0 cable for connecting laptops to displays.', price: 350, stock_quantity: 15, is_featured: false },
+      { categorySlug: 'other-electronics', name: 'Reading Light (USB)', slug: 'reading-light-usb', description: 'Flexible USB-powered LED reading lamp. 3 brightness levels.', price: 300, stock_quantity: 20, is_featured: false },
+      { categorySlug: 'other-electronics', name: 'Cable Organiser (Pack of 6)', slug: 'cable-organiser-pack', description: 'Reusable silicone cable ties for keeping your desk neat.', price: 150, stock_quantity: 30, is_featured: false },
+    ];
+
+    for (const product of productSeedData) {
+      const categoryId = catMap[product.categorySlug];
+      if (!categoryId) continue;
+      await pool.query(
+        `INSERT INTO shop_products (category_id, name, slug, description, price, stock_quantity, is_featured)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [categoryId, product.name, product.slug, product.description, product.price, product.stock_quantity, product.is_featured]
+      );
+    }
+
+    console.log("Shop seed data inserted.");
+  } catch (error) {
+    console.error("Failed to seed shop data:", error);
+  }
+}
+
+async function ensureTablesExist() {
+  await initializePushSubscriptionsTable();
+  await initializeContactMessagesTable();
+  await initializeSupportMessagesTable();
+  await ensureShopTablesExist();
+  await initializeDatabaseIndexes();
+  await seedShopData();
+  await ensureAdminUserExists();
 }
 
 // Web Push Helper: Send push notifications to all subscribed devices for a user
@@ -446,7 +610,7 @@ async function startServer() {
   const PORT = Number.isInteger(requestedPort) && requestedPort > 0 ? requestedPort : 3000;
 
   // Initialize database tables on startup
-  await initializePushSubscriptionsTable();
+  await ensureTablesExist();
 
   app.use((req, res, next) => {
     const start = Date.now();
@@ -472,12 +636,35 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === "production";
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
 
-  // CORS: allow the frontend dev server origin during development (minimal middleware)
-  const CORS_ORIGIN = process.env.VITE_API_URL || "http://localhost:5174";
+  // CORS: allow the active frontend origins for both development and production.
+  const allowedOrigins = [
+    "https://clooval.com",
+    "https://www.clooval.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    process.env.FRONTEND_URL,
+    process.env.VITE_API_URL,
+  ].filter(Boolean) as string[];
+
+  const isAllowedOrigin = (origin: string | undefined) => {
+    if (!origin) return false;
+    try {
+      const parsed = new URL(origin);
+      return allowedOrigins.includes(parsed.origin);
+    } catch {
+      return false;
+    }
+  };
+
   app.use((req, res, next) => {
     const originHeader = req.headers.origin;
-    console.log('CORS middleware:', req.method, 'Origin:', originHeader);
-    res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+    const allowedOrigin = isAllowedOrigin(originHeader)
+      ? originHeader
+      : (process.env.FRONTEND_URL || "http://localhost:5173");
+
+    console.log("CORS middleware:", req.method, "Origin:", originHeader, "->", allowedOrigin);
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -511,11 +698,6 @@ async function startServer() {
     legacyHeaders: false,
     message: { error: "Too many support submissions, please try again later." },
   });
-
-  await initializeContactMessagesTable();
-  await initializeSupportMessagesTable();
-  await initializeDatabaseIndexes();
-  await ensureAdminUserExists();
 
   // API Contact Form Route
   app.post("/api/contact", contactFormLimiter, async (req, res) => {
@@ -2101,6 +2283,994 @@ async function startServer() {
       res.status(500).json({ error: "Failed to remove push subscription: " + err.message });
     }
   });
+
+  const getAuthenticatedStudentMiddleware = (req: express.Request): User | null => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "student") {
+      return null;
+    }
+    return user;
+  };
+
+  const getAuthenticatedAdminMiddleware = (req: express.Request): User | null => {
+    const user = getAuthenticatedUser(req);
+    if (!user || user.role !== "admin") {
+      return null;
+    }
+    return user;
+  };
+
+  const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "product";
+
+  const buildShopListResponse = (data: any[], total: number, page: number, pageSize: number) => ({
+    data,
+    total,
+    page,
+    page_size: pageSize,
+    pages: Math.max(1, Math.ceil(total / pageSize)),
+  });
+
+  const errorResponse = (code: string, detail: string) => ({ success: false, error: { code, detail } });
+
+  const parsePage = (value: any, fallback: number) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+
+  const parsePageSize = (value: any, fallback: number, max: number) => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return Math.min(parsed, max);
+  };
+
+  // Shop: Public routes
+  app.get("/api/shop/categories", async (req, res) => {
+    try {
+      const cacheKey = "shop:categories";
+      const cached = getCached<any[]>(cacheKey);
+      if (cached) {
+        return res.json({ success: true, data: cached });
+      }
+
+      const result = await pool.query(
+        "SELECT id, name, slug, description FROM shop_categories WHERE is_active = true ORDER BY display_order ASC, created_at ASC"
+      );
+      const data = result.rows;
+      setCached(cacheKey, data, 300);
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("Shop categories error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load categories."));
+    }
+  });
+
+  app.get("/api/shop/products", async (req, res) => {
+    try {
+      const category = typeof req.query.category === "string" ? req.query.category : undefined;
+      const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+      const sort = typeof req.query.sort === "string" ? req.query.sort : "newest";
+      const featured = typeof req.query.featured === "string" ? req.query.featured : undefined;
+      const page = parsePage(req.query.page, 1);
+      const pageSize = parsePageSize(req.query.page_size, 20, 50);
+      const offset = (page - 1) * pageSize;
+
+      const validSorts = new Set(["price_asc", "price_desc", "newest"]);
+      const sortMode = validSorts.has(sort) ? sort : "newest";
+
+      let query = `
+        SELECT p.id, p.name, p.slug, p.price, p.stock_quantity, p.is_featured, p.image_urls,
+               c.id AS category_id, c.name AS category_name, c.slug AS category_slug
+        FROM shop_products p
+        JOIN shop_categories c ON c.id = p.category_id
+        WHERE p.is_available = true
+      `;
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      if (category) {
+        query += ` AND c.slug = $${paramIndex++}`;
+        params.push(category);
+      }
+      if (search) {
+        query += ` AND (p.name ILIKE $${paramIndex++} OR p.description ILIKE $${paramIndex++})`;
+        params.push(`%${search}%`, `%${search}%`);
+      }
+      if (featured === "true") {
+        query += ` AND p.is_featured = true`;
+      } else if (featured === "false") {
+        query += ` AND p.is_featured = false`;
+      }
+
+      const orderBy = sortMode === "price_asc"
+        ? "ORDER BY p.price ASC, p.created_at DESC"
+        : sortMode === "price_desc"
+          ? "ORDER BY p.price DESC, p.created_at DESC"
+          : "ORDER BY p.created_at DESC, p.id DESC";
+
+      const countQuery = `SELECT COUNT(*) FROM (${query}) AS filtered`;
+      const countResult = await pool.query(countQuery, params);
+      const total = parseInt(countResult.rows[0].count, 10);
+
+      query += `${orderBy} LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+      params.push(pageSize, offset);
+
+      const result = await pool.query(query, params);
+      const data = result.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        price: Number(row.price),
+        stock_quantity: row.stock_quantity,
+        is_featured: row.is_featured,
+        image_urls: row.image_urls || [],
+        category: { id: row.category_id, name: row.category_name, slug: row.category_slug },
+      }));
+
+      return res.json({ success: true, data: buildShopListResponse(data, total, page, pageSize) });
+    } catch (error: any) {
+      console.error("Shop products list error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load products."));
+    }
+  });
+
+  app.get("/api/shop/products/featured", async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT p.id, p.name, p.slug, p.price, p.stock_quantity, p.is_featured, p.image_urls,
+               c.id AS category_id, c.name AS category_name, c.slug AS category_slug
+        FROM shop_products p
+        JOIN shop_categories c ON c.id = p.category_id
+        WHERE p.is_available = true AND p.is_featured = true
+        ORDER BY p.created_at DESC
+        LIMIT 6
+      `);
+      const data = result.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        price: Number(row.price),
+        stock_quantity: row.stock_quantity,
+        is_featured: row.is_featured,
+        image_urls: row.image_urls || [],
+        category: { id: row.category_id, name: row.category_name, slug: row.category_slug },
+      }));
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("Featured shop products error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load featured products."));
+    }
+  });
+
+  app.get("/api/shop/products/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const result = await pool.query(`
+        SELECT p.*, c.id AS category_id, c.name AS category_name, c.slug AS category_slug
+        FROM shop_products p
+        JOIN shop_categories c ON c.id = p.category_id
+        WHERE p.slug = $1 AND p.is_available = true
+        LIMIT 1
+      `, [slug]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json(errorResponse("NOT_FOUND", "Product not found."));
+      }
+
+      const row = result.rows[0];
+      return res.json({ success: true, data: {
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description,
+        price: Number(row.price),
+        stock_quantity: row.stock_quantity,
+        is_available: row.is_available,
+        is_featured: row.is_featured,
+        image_urls: row.image_urls || [],
+        specs: row.specs || {},
+        category: { id: row.category_id, name: row.category_name, slug: row.category_slug },
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      } });
+    } catch (error: any) {
+      console.error("Shop product detail error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load product details."));
+    }
+  });
+
+  // Shop: Student routes
+  app.get("/api/shop/cart", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    try {
+      const result = await pool.query(`
+        SELECT sci.id, sci.quantity, sci.added_at, p.id AS product_id, p.name AS product_name, p.price, p.stock_quantity, p.image_urls, p.is_available
+        FROM shop_cart_items sci
+        JOIN shop_products p ON p.id = sci.product_id
+        WHERE sci.student_id = $1
+        ORDER BY sci.added_at DESC
+      `, [user.id]);
+
+      const items = result.rows.map((row: any) => ({
+        id: row.id,
+        quantity: row.quantity,
+        added_at: row.added_at,
+        product: {
+          id: row.product_id,
+          name: row.product_name,
+          price: Number(row.price),
+          stock_quantity: row.stock_quantity,
+          image_urls: row.image_urls || [],
+          is_available: row.is_available,
+        },
+      }));
+      const total = items.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
+      return res.json({ success: true, data: { items, total: Number(total.toFixed(2)), item_count: items.reduce((sum, item) => sum + item.quantity, 0) } });
+    } catch (error: any) {
+      console.error("Shop cart fetch error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load cart."));
+    }
+  });
+
+  app.post("/api/shop/cart", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    const { product_id, quantity } = req.body;
+    if (!product_id || !Number.isInteger(Number(quantity)) || Number(quantity) < 1) {
+      return res.status(400).json(errorResponse("INVALID_REQUEST", "A valid product_id and quantity are required."));
+    }
+
+    const requestedQty = Number(quantity);
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const productRes = await client.query("SELECT id, name, stock_quantity, is_available FROM shop_products WHERE id = $1", [product_id]);
+      if (productRes.rows.length === 0 || !productRes.rows[0].is_available) {
+        await client.query("ROLLBACK");
+        return res.status(404).json(errorResponse("PRODUCT_NOT_FOUND", "Product is unavailable."));
+      }
+
+      const product = productRes.rows[0];
+      if (requestedQty > product.stock_quantity) {
+        await client.query("ROLLBACK");
+        return res.status(400).json(errorResponse("STOCK_ERROR", "Requested quantity exceeds available stock."));
+      }
+
+      const existingCart = await client.query("SELECT quantity FROM shop_cart_items WHERE student_id = $1 AND product_id = $2", [user.id, product_id]);
+      const currentQty = existingCart.rows[0]?.quantity || 0;
+      const newQty = currentQty + requestedQty;
+      if (newQty > product.stock_quantity) {
+        await client.query("ROLLBACK");
+        return res.status(400).json(errorResponse("STOCK_ERROR", "Cart quantity exceeds available stock."));
+      }
+
+      if (existingCart.rows.length > 0) {
+        await client.query("UPDATE shop_cart_items SET quantity = $1, added_at = NOW() WHERE student_id = $2 AND product_id = $3", [newQty, user.id, product_id]);
+      } else {
+        await client.query("INSERT INTO shop_cart_items (student_id, product_id, quantity) VALUES ($1, $2, $3)", [user.id, product_id, requestedQty]);
+      }
+      await client.query("COMMIT");
+      return res.json({ success: true, data: (await getShopCartData(user.id)) });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      console.error("Shop cart add error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to add item to cart."));
+    } finally {
+      client.release();
+    }
+  });
+
+  app.patch("/api/shop/cart/:product_id", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    const { quantity } = req.body;
+    const { product_id } = req.params;
+    const parsedQty = Number(quantity);
+    if (!Number.isInteger(parsedQty) || parsedQty < 0) {
+      return res.status(400).json(errorResponse("INVALID_REQUEST", "Quantity must be a non-negative integer."));
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (parsedQty === 0) {
+        await client.query("DELETE FROM shop_cart_items WHERE student_id = $1 AND product_id = $2", [user.id, product_id]);
+      } else {
+        const productRes = await client.query("SELECT stock_quantity FROM shop_products WHERE id = $1", [product_id]);
+        if (productRes.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json(errorResponse("PRODUCT_NOT_FOUND", "Product not found."));
+        }
+        if (parsedQty > productRes.rows[0].stock_quantity) {
+          await client.query("ROLLBACK");
+          return res.status(400).json(errorResponse("STOCK_ERROR", "Requested quantity exceeds available stock."));
+        }
+        await client.query("UPDATE shop_cart_items SET quantity = $1 WHERE student_id = $2 AND product_id = $3", [parsedQty, user.id, product_id]);
+      }
+      await client.query("COMMIT");
+      return res.json({ success: true, data: (await getShopCartData(user.id)) });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      console.error("Shop cart update error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to update cart item."));
+    } finally {
+      client.release();
+    }
+  });
+
+  app.delete("/api/shop/cart/:product_id", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    try {
+      await pool.query("DELETE FROM shop_cart_items WHERE student_id = $1 AND product_id = $2", [user.id, req.params.product_id]);
+      return res.json({ success: true, data: (await getShopCartData(user.id)) });
+    } catch (error: any) {
+      console.error("Shop cart remove error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to remove cart item."));
+    }
+  });
+
+  app.delete("/api/shop/cart", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    try {
+      await pool.query("DELETE FROM shop_cart_items WHERE student_id = $1", [user.id]);
+      return res.json({ success: true, data: { items: [], total: 0, item_count: 0 } });
+    } catch (error: any) {
+      console.error("Shop cart clear error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to clear cart."));
+    }
+  });
+
+  app.post("/api/shop/orders", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const cartRes = await client.query(`
+        SELECT sci.product_id, sci.quantity, p.name AS product_name, p.price, p.stock_quantity
+        FROM shop_cart_items sci
+        JOIN shop_products p ON p.id = sci.product_id
+        WHERE sci.student_id = $1
+        ORDER BY sci.added_at ASC
+      `, [user.id]);
+
+      if (cartRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json(errorResponse("EMPTY_CART", "Cannot place an empty order."));
+      }
+
+      const outOfStock: string[] = [];
+      const lineItems: any[] = [];
+      for (const row of cartRes.rows) {
+        if (row.quantity > row.stock_quantity) {
+          outOfStock.push(row.product_name);
+        }
+        lineItems.push({ product_id: row.product_id, product_name: row.product_name, product_price: Number(row.price), quantity: row.quantity, line_total: Number(row.price) * row.quantity });
+      }
+
+      if (outOfStock.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ success: false, error: { code: "STOCK_ERROR", detail: "Some items are out of stock", out_of_stock: outOfStock } });
+      }
+
+      const totalAmount = lineItems.reduce((sum, item) => sum + item.line_total, 0);
+      const orderRes = await client.query(`
+        INSERT INTO shop_orders (student_id, status, total_amount, notes, admin_notes, created_at, updated_at)
+        VALUES ($1, 'pending', $2, $3, $4, NOW(), NOW())
+        RETURNING id, status, total_amount
+      `, [user.id, totalAmount.toFixed(2), req.body.notes || null, null]);
+      const order = orderRes.rows[0];
+      const orderId = order.id;
+
+      for (const item of lineItems) {
+        await client.query(`
+          INSERT INTO shop_order_items (order_id, product_id, product_name, product_price, quantity, line_total)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [orderId, item.product_id, item.product_name, item.product_price, item.quantity, item.line_total]);
+        await client.query(`
+          UPDATE shop_products SET stock_quantity = stock_quantity - $1, updated_at = NOW() WHERE id = $2
+        `, [item.quantity, item.product_id]);
+      }
+
+      await client.query("DELETE FROM shop_cart_items WHERE student_id = $1", [user.id]);
+      await client.query("COMMIT");
+
+      sendEmail(
+        "cloovalcontact@gmail.com",
+        `New shop order — ${user.name}`,
+        `Student: ${user.name}\nEmail: ${user.email}\nItems:\n${lineItems.map((item) => `- ${item.product_name} x${item.quantity}`).join("\n")}\nTotal: MUR ${totalAmount.toFixed(2)}`
+      ).catch((error) => console.error("Failed to send shop order notification email:", error));
+
+      return res.json({ success: true, data: { order_id: orderId, status: order.status, total_amount: Number(order.total_amount), items: lineItems } });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      console.error("Shop order create error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to place order."));
+    } finally {
+      client.release();
+    }
+  });
+
+  app.get("/api/shop/orders", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    try {
+      const page = parsePage(req.query.page, 1);
+      const pageSize = parsePageSize(req.query.page_size, 10, 50);
+      const offset = (page - 1) * pageSize;
+      const orderResult = await pool.query(`
+        SELECT id, status, total_amount, created_at, updated_at
+        FROM shop_orders
+        WHERE student_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+      `, [user.id, pageSize, offset]);
+      const totalResult = await pool.query("SELECT COUNT(*) FROM shop_orders WHERE student_id = $1", [user.id]);
+      const total = parseInt(totalResult.rows[0].count, 10);
+      const data = await Promise.all(orderResult.rows.map(async (order: any) => {
+        const itemsResult = await pool.query(`
+          SELECT product_id, product_name, product_price, quantity, line_total
+          FROM shop_order_items
+          WHERE order_id = $1
+        `, [order.id]);
+        return {
+          id: order.id,
+          status: order.status,
+          total_amount: Number(order.total_amount),
+          created_at: order.created_at,
+          updated_at: order.updated_at,
+          items: itemsResult.rows.map((item: any) => ({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            product_price: Number(item.product_price),
+            quantity: item.quantity,
+            line_total: Number(item.line_total),
+          })),
+        };
+      }));
+
+      return res.json({ success: true, data: buildShopListResponse(data, total, page, pageSize) });
+    } catch (error: any) {
+      console.error("Shop orders list error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load orders."));
+    }
+  });
+
+  app.get("/api/shop/orders/:id", async (req, res) => {
+    const user = getAuthenticatedStudentMiddleware(req);
+    if (!user) {
+      return res.status(401).json(errorResponse("UNAUTHORIZED", "Authentication required."));
+    }
+
+    try {
+      const orderResult = await pool.query("SELECT * FROM shop_orders WHERE id = $1", [req.params.id]);
+      if (orderResult.rows.length === 0) {
+        return res.status(404).json(errorResponse("NOT_FOUND", "Order not found."));
+      }
+      const order = orderResult.rows[0];
+      if (order.student_id !== user.id) {
+        return res.status(403).json(errorResponse("FORBIDDEN", "This order does not belong to your account."));
+      }
+      const itemsResult = await pool.query(`
+        SELECT product_id, product_name, product_price, quantity, line_total
+        FROM shop_order_items
+        WHERE order_id = $1
+      `, [req.params.id]);
+      return res.json({ success: true, data: { id: order.id, status: order.status, total_amount: Number(order.total_amount), created_at: order.created_at, updated_at: order.updated_at, items: itemsResult.rows.map((item: any) => ({ product_id: item.product_id, product_name: item.product_name, product_price: Number(item.product_price), quantity: item.quantity, line_total: Number(item.line_total) })) } });
+    } catch (error: any) {
+      console.error("Shop order detail error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load order details."));
+    }
+  });
+
+  // Shop: Admin routes
+  app.get("/api/admin/shop/products", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const available = typeof req.query.available === "string" ? req.query.available : "all";
+      const page = parsePage(req.query.page, 1);
+      const pageSize = parsePageSize(req.query.page_size, 20, 50);
+      const offset = (page - 1) * pageSize;
+      let query = `
+        SELECT p.*, c.id AS category_id, c.name AS category_name, c.slug AS category_slug
+        FROM shop_products p
+        JOIN shop_categories c ON c.id = p.category_id
+      `;
+      const params: any[] = [];
+      if (available === "true") {
+        query += " WHERE p.is_available = true";
+      } else if (available === "false") {
+        query += " WHERE p.is_available = false";
+      }
+      query += " ORDER BY p.created_at DESC LIMIT $1 OFFSET $2";
+      params.push(pageSize, offset);
+      const result = await pool.query(query, params);
+      const countResult = await pool.query("SELECT COUNT(*) FROM shop_products" );
+      const data = result.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description,
+        price: Number(row.price),
+        stock_quantity: row.stock_quantity,
+        is_available: row.is_available,
+        is_featured: row.is_featured,
+        image_urls: row.image_urls || [],
+        specs: row.specs || {},
+        category: { id: row.category_id, name: row.category_name, slug: row.category_slug },
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }));
+      return res.json({ success: true, data: buildShopListResponse(data, parseInt(countResult.rows[0].count, 10), page, pageSize) });
+    } catch (error: any) {
+      console.error("Admin shop products list error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load products."));
+    }
+  });
+
+  app.post("/api/admin/shop/products", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const { category_id, name, description, price, stock_quantity, is_available, is_featured, image_urls, specs } = req.body;
+      if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 255) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Product name must be between 2 and 255 characters."));
+      }
+      const priceValue = Number(price);
+      if (!Number.isFinite(priceValue) || priceValue <= 0) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Price must be a positive number."));
+      }
+      const stockValue = Number(stock_quantity);
+      if (!Number.isInteger(stockValue) || stockValue < 0) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Stock quantity must be zero or more."));
+      }
+      const categoryRes = await pool.query("SELECT id FROM shop_categories WHERE id = $1", [category_id]);
+      if (categoryRes.rows.length === 0) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Category does not exist."));
+      }
+
+      let slug = slugify(name);
+      let slugIndex = 2;
+      let slugExists = true;
+      let finalSlug = slug;
+      while (slugExists) {
+        const existsRes = await pool.query("SELECT id FROM shop_products WHERE slug = $1", [finalSlug]);
+        if (existsRes.rows.length === 0) {
+          slugExists = false;
+        } else {
+          finalSlug = `${slug}-${slugIndex}`;
+          slugIndex += 1;
+        }
+      }
+
+      const result = await pool.query(`
+        INSERT INTO shop_products (category_id, name, slug, description, price, stock_quantity, is_available, is_featured, image_urls, specs, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()) RETURNING *
+      `, [category_id, name.trim(), finalSlug, description || null, priceValue.toFixed(2), stockValue, is_available !== false, is_featured === true, JSON.stringify(image_urls || []), JSON.stringify(specs || {})]);
+      const row = result.rows[0];
+      return res.status(201).json({ success: true, data: { id: row.id, name: row.name, slug: row.slug, description: row.description, price: Number(row.price), stock_quantity: row.stock_quantity, is_available: row.is_available, is_featured: row.is_featured, image_urls: row.image_urls || [], specs: row.specs || {}, created_at: row.created_at, updated_at: row.updated_at } });
+    } catch (error: any) {
+      console.error("Admin create product error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to create product."));
+    }
+  });
+
+  app.patch("/api/admin/shop/products/:id", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const { name, description, price, stock_quantity, is_available, is_featured, image_urls, specs, category_id } = req.body;
+      const existingRes = await pool.query("SELECT * FROM shop_products WHERE id = $1", [req.params.id]);
+      if (existingRes.rows.length === 0) {
+        return res.status(404).json(errorResponse("NOT_FOUND", "Product not found."));
+      }
+
+      if (name !== undefined) {
+        if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 255) {
+          return res.status(400).json(errorResponse("INVALID_REQUEST", "Product name must be between 2 and 255 characters."));
+        }
+      }
+      if (price !== undefined) {
+        const priceValue = Number(price);
+        if (!Number.isFinite(priceValue) || priceValue <= 0) {
+          return res.status(400).json(errorResponse("INVALID_REQUEST", "Price must be a positive number."));
+        }
+      }
+      if (stock_quantity !== undefined) {
+        const stockValue = Number(stock_quantity);
+        if (!Number.isInteger(stockValue) || stockValue < 0) {
+          return res.status(400).json(errorResponse("INVALID_REQUEST", "Stock quantity must be zero or more."));
+        }
+      }
+      if (category_id !== undefined) {
+        const categoryRes = await pool.query("SELECT id FROM shop_categories WHERE id = $1", [category_id]);
+        if (categoryRes.rows.length === 0) {
+          return res.status(400).json(errorResponse("INVALID_REQUEST", "Category does not exist."));
+        }
+      }
+
+      const updates: string[] = ["updated_at = NOW()"];
+      const values: any[] = [];
+      let index = 1;
+      if (name !== undefined) {
+        updates.push(`name = $${index++}`); values.push(name.trim());
+      }
+      if (description !== undefined) {
+        updates.push(`description = $${index++}`); values.push(description);
+      }
+      if (price !== undefined) {
+        updates.push(`price = $${index++}`); values.push(Number(price).toFixed(2));
+      }
+      if (stock_quantity !== undefined) {
+        updates.push(`stock_quantity = $${index++}`); values.push(Number(stock_quantity));
+      }
+      if (is_available !== undefined) {
+        updates.push(`is_available = $${index++}`); values.push(Boolean(is_available));
+      }
+      if (is_featured !== undefined) {
+        updates.push(`is_featured = $${index++}`); values.push(Boolean(is_featured));
+      }
+      if (image_urls !== undefined) {
+        updates.push(`image_urls = $${index++}`); values.push(JSON.stringify(image_urls || []));
+      }
+      if (specs !== undefined) {
+        updates.push(`specs = $${index++}`); values.push(JSON.stringify(specs || {}));
+      }
+      if (category_id !== undefined) {
+        updates.push(`category_id = $${index++}`); values.push(category_id);
+      }
+      values.push(req.params.id);
+      const result = await pool.query(`UPDATE shop_products SET ${updates.join(", ")} WHERE id = $${index} RETURNING *`, values);
+      const row = result.rows[0];
+      return res.json({ success: true, data: { id: row.id, name: row.name, slug: row.slug, description: row.description, price: Number(row.price), stock_quantity: row.stock_quantity, is_available: row.is_available, is_featured: row.is_featured, image_urls: row.image_urls || [], specs: row.specs || {}, created_at: row.created_at, updated_at: row.updated_at } });
+    } catch (error: any) {
+      console.error("Admin update product error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to update product."));
+    }
+  });
+
+  app.delete("/api/admin/shop/products/:id", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      await pool.query("UPDATE shop_products SET is_available = false, stock_quantity = 0, updated_at = NOW() WHERE id = $1", [req.params.id]);
+      return res.json({ success: true, message: "Product deactivated." });
+    } catch (error: any) {
+      console.error("Admin deactivate product error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to deactivate product."));
+    }
+  });
+
+  app.patch("/api/admin/shop/products/:id/stock", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const { stock_quantity, operation } = req.body;
+      const productRes = await pool.query("SELECT stock_quantity FROM shop_products WHERE id = $1", [req.params.id]);
+      if (productRes.rows.length === 0) {
+        return res.status(404).json(errorResponse("NOT_FOUND", "Product not found."));
+      }
+      const current = Number(productRes.rows[0].stock_quantity);
+      let next = current;
+      if (operation === "set") {
+        next = Number(stock_quantity);
+      } else if (operation === "add") {
+        next = current + Number(stock_quantity);
+      } else if (operation === "subtract") {
+        next = current - Number(stock_quantity);
+      } else {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Operation must be set, add, or subtract."));
+      }
+      if (!Number.isInteger(next) || next < 0) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Stock cannot be negative."));
+      }
+      const updatedRes = await pool.query("UPDATE shop_products SET stock_quantity = $1, updated_at = NOW() WHERE id = $2 RETURNING *", [next, req.params.id]);
+      const row = updatedRes.rows[0];
+      return res.json({ success: true, data: { id: row.id, stock_quantity: row.stock_quantity, updated_at: row.updated_at } });
+    } catch (error: any) {
+      console.error("Admin stock update error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to update stock."));
+    }
+  });
+
+  app.get("/api/admin/shop/orders", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const page = parsePage(req.query.page, 1);
+      const pageSize = parsePageSize(req.query.page_size, 10, 50);
+      const offset = (page - 1) * pageSize;
+      const { status, date_from, date_to } = req.query;
+      let query = `
+        SELECT so.id, so.student_id, so.status, so.total_amount, so.created_at, so.updated_at, u.name AS student_name, u.email AS student_email
+        FROM shop_orders so
+        JOIN users u ON u.id = so.student_id
+        WHERE 1 = 1
+      `;
+      const values: any[] = [];
+      let index = 1;
+      if (typeof status === "string" && status) {
+        query += ` AND so.status = $${index++}`;
+        values.push(status);
+      }
+      if (typeof date_from === "string" && date_from) {
+        query += ` AND so.created_at >= $${index++}`;
+        values.push(date_from);
+      }
+      if (typeof date_to === "string" && date_to) {
+        query += ` AND so.created_at <= $${index++}`;
+        values.push(date_to);
+      }
+      query += ` ORDER BY so.created_at DESC LIMIT $${index++} OFFSET $${index++}`;
+      values.push(pageSize, offset);
+      const result = await pool.query(query, values);
+      const totalResult = await pool.query("SELECT COUNT(*) FROM shop_orders");
+      const data = await Promise.all(result.rows.map(async (order: any) => {
+        const itemsResult = await pool.query("SELECT product_name, quantity, line_total FROM shop_order_items WHERE order_id = $1", [order.id]);
+        return { id: order.id, student_id: order.student_id, student_name: order.student_name, student_email: order.student_email, status: order.status, total_amount: Number(order.total_amount), created_at: order.created_at, updated_at: order.updated_at, items: itemsResult.rows.map((item: any) => ({ product_name: item.product_name, quantity: item.quantity, line_total: Number(item.line_total) })) };
+      }));
+      return res.json({ success: true, data: buildShopListResponse(data, parseInt(totalResult.rows[0].count, 10), page, pageSize) });
+    } catch (error: any) {
+      console.error("Admin shop orders list error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load orders."));
+    }
+  });
+
+  app.patch("/api/admin/shop/orders/:id/status", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    const { status, admin_notes } = req.body;
+    if (!status) {
+      return res.status(400).json(errorResponse("INVALID_REQUEST", "A status is required."));
+    }
+
+    const validTransitions: Record<string, string[]> = {
+      pending: ["confirmed", "cancelled"],
+      confirmed: ["ready_for_collection", "cancelled"],
+      ready_for_collection: ["completed", "cancelled"],
+      completed: [],
+      cancelled: [],
+    };
+
+    try {
+      const orderRes = await pool.query("SELECT * FROM shop_orders WHERE id = $1", [req.params.id]);
+      if (orderRes.rows.length === 0) {
+        return res.status(404).json(errorResponse("NOT_FOUND", "Order not found."));
+      }
+      const currentOrder = orderRes.rows[0];
+      if (!validTransitions[currentOrder.status]?.includes(status)) {
+        return res.status(400).json(errorResponse("INVALID_TRANSITION", "This status transition is not allowed."));
+      }
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        if (status === "cancelled") {
+          const itemsRes = await client.query("SELECT product_id, quantity FROM shop_order_items WHERE order_id = $1", [req.params.id]);
+          for (const row of itemsRes.rows) {
+            await client.query("UPDATE shop_products SET stock_quantity = stock_quantity + $1, updated_at = NOW() WHERE id = $2", [row.quantity, row.product_id]);
+          }
+        }
+        const updatedOrder = await client.query(`
+          UPDATE shop_orders SET status = $1, admin_notes = COALESCE($2, admin_notes), updated_at = NOW() WHERE id = $3 RETURNING *
+        `, [status, admin_notes || null, req.params.id]);
+        await client.query("COMMIT");
+        const studentRes = await pool.query("SELECT name, email FROM users WHERE id = $1", [currentOrder.student_id]);
+        sendEmail(
+          studentRes.rows[0]?.email || "cloovalcontact@gmail.com",
+          `Your shop order status changed to ${status}`,
+          `Hello ${studentRes.rows[0]?.name || "Student"},\nYour shop order ${req.params.id} is now ${status}.`
+        ).catch((error) => console.error("Failed to send shop order status email:", error));
+        return res.json({ success: true, data: { id: updatedOrder.rows[0].id, status: updatedOrder.rows[0].status, admin_notes: updatedOrder.rows[0].admin_notes, updated_at: updatedOrder.rows[0].updated_at } });
+      } catch (error: any) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error: any) {
+      console.error("Admin shop order status error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to update order status."));
+    }
+  });
+
+  app.get("/api/admin/shop/categories", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const result = await pool.query("SELECT * FROM shop_categories ORDER BY display_order ASC, created_at ASC");
+      return res.json({ success: true, data: result.rows });
+    } catch (error: any) {
+      console.error("Admin shop categories error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to load categories."));
+    }
+  });
+
+  app.post("/api/admin/shop/categories", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const { name, description, display_order } = req.body;
+      if (typeof name !== "string" || name.trim().length < 2) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Category name is required."));
+      }
+      let slug = slugify(name);
+      let suffix = 2;
+      let candidate = slug;
+      while (true) {
+        const existsRes = await pool.query("SELECT id FROM shop_categories WHERE slug = $1", [candidate]);
+        if (existsRes.rows.length === 0) {
+          break;
+        }
+        candidate = `${slug}-${suffix}`;
+        suffix += 1;
+      }
+      const result = await pool.query(`
+        INSERT INTO shop_categories (name, slug, description, display_order, is_active)
+        VALUES ($1, $2, $3, $4, true) RETURNING *
+      `, [name.trim(), candidate, description || null, Number(display_order || 0)]);
+      return res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (error: any) {
+      console.error("Admin shop category create error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to create category."));
+    }
+  });
+
+  app.patch("/api/admin/shop/categories/:id", async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const { name, description, display_order, is_active } = req.body;
+      const updates: string[] = [];
+      const values: any[] = [];
+      let index = 1;
+      if (name !== undefined) {
+        updates.push(`name = $${index++}`); values.push(name.trim());
+      }
+      if (description !== undefined) {
+        updates.push(`description = $${index++}`); values.push(description);
+      }
+      if (display_order !== undefined) {
+        updates.push(`display_order = $${index++}`); values.push(Number(display_order));
+      }
+      if (is_active !== undefined) {
+        updates.push(`is_active = $${index++}`); values.push(Boolean(is_active));
+      }
+      if (updates.length === 0) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "No updates provided."));
+      }
+      values.push(req.params.id);
+      const result = await pool.query(`UPDATE shop_categories SET ${updates.join(", ")} WHERE id = $${index} RETURNING *`, values);
+      if (result.rows.length === 0) {
+        return res.status(404).json(errorResponse("NOT_FOUND", "Category not found."));
+      }
+      return res.json({ success: true, data: result.rows[0] });
+    } catch (error: any) {
+      console.error("Admin shop category update error:", error);
+      return res.status(500).json(errorResponse("INTERNAL_ERROR", "Unable to update category."));
+    }
+  });
+
+  app.post("/api/admin/shop/upload-image", upload.single("image"), async (req, res) => {
+    const user = getAuthenticatedAdminMiddleware(req);
+    if (!user) {
+      return res.status(user ? 403 : 401).json(errorResponse(user ? "FORBIDDEN" : "UNAUTHORIZED", user ? "Admin access required." : "Authentication required."));
+    }
+
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "An image file is required."));
+      }
+      const mimeType = file.mimetype || "";
+      if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Only JPEG, PNG, and WEBP images are allowed."));
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        return res.status(400).json(errorResponse("INVALID_REQUEST", "Image must be 5MB or smaller."));
+      }
+      if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+        return res.status(500).json(errorResponse("UPLOAD_UNAVAILABLE", "Cloudinary is not configured."));
+      }
+      const uploadResult: any = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({
+          folder: "clooval-shop",
+          transformation: [{ width: 800, quality: "auto", fetch_format: "auto" }],
+        }, (error, result) => {
+          if (error || !result) {
+            reject(error || new Error("Upload failed"));
+            return;
+          }
+          resolve(result);
+        });
+        stream.end(file.buffer);
+      });
+      return res.json({ success: true, data: { url: uploadResult.secure_url, public_id: uploadResult.public_id } });
+    } catch (error: any) {
+      console.error("Shop image upload error:", error);
+      return res.status(500).json(errorResponse("UPLOAD_FAILED", "Unable to upload image."));
+    }
+  });
+
+  async function getShopCartData(studentId: string) {
+    const result = await pool.query(`
+      SELECT sci.id, sci.quantity, sci.added_at, p.id AS product_id, p.name AS product_name, p.price, p.stock_quantity, p.image_urls, p.is_available
+      FROM shop_cart_items sci
+      JOIN shop_products p ON p.id = sci.product_id
+      WHERE sci.student_id = $1
+      ORDER BY sci.added_at DESC
+    `, [studentId]);
+
+    const items = result.rows.map((row: any) => ({
+      id: row.id,
+      quantity: row.quantity,
+      added_at: row.added_at,
+      product: {
+        id: row.product_id,
+        name: row.product_name,
+        price: Number(row.price),
+        stock_quantity: row.stock_quantity,
+        image_urls: row.image_urls || [],
+        is_available: row.is_available,
+      },
+    }));
+    const total = items.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
+    return { items, total: Number(total.toFixed(2)), item_count: items.reduce((sum, item) => sum + item.quantity, 0) };
+  }
 
   const frontendRoot = path.join(process.cwd(), "frontend");
   const frontendPublic = path.join(frontendRoot, "public");

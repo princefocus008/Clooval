@@ -192,8 +192,20 @@ export default function AdminOverview() {
                   ))}
                 </div>
               ) : requestsError ? (
-                <div className="p-4 bg-red-50 text-red-600 rounded-lg text-xs font-medium text-left">
-                  Failed to load system priorities.
+                <div className="rounded-3xl border border-[#FFE6E6] bg-[#FFF5F5] p-6 text-left">
+                  <p className="text-sm font-semibold text-[#A11313]">Failed to load system priorities.</p>
+                  <p className="mt-2 text-xs text-[#9B1C1C]">
+                    {import.meta.env.DEV
+                      ? `Error: ${requestsError?.message || "Unknown error"}`
+                      : "Please check your connection and try again."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="mt-4 rounded-full bg-[#111111] px-4 py-2 text-[12px] font-semibold text-white"
+                  >
+                    Try again
+                  </button>
                 </div>
               ) : priorityRequests.length > 0 ? (
                 <div className="divide-y divide-[#E5E5E3]">

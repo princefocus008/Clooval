@@ -106,8 +106,20 @@ export default function Providers() {
             ))}
           </div>
         ) : error ? (
-          <div className="p-4 bg-red-50 text-red-600 rounded-lg text-sm font-semibold">
-            Failed to retrieve providers directory catalog.
+          <div className="rounded-3xl border border-[#FFE6E6] bg-[#FFF5F5] p-6 text-[#A11313]">
+            <p className="text-sm font-semibold">Failed to retrieve providers directory catalog.</p>
+            <p className="mt-2 text-xs text-[#9B1C1C]">
+              {import.meta.env.DEV
+                ? `Error: ${error?.message || "Unknown error"}`
+                : "Please check your connection and try again."}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-full bg-[#111111] px-4 py-2 text-[12px] font-semibold text-white"
+            >
+              Try again
+            </button>
           </div>
         ) : providers && providers.length > 0 ? (
           <div className="divide-y divide-[#E5E5E3] border-t border-[#E5E5E3] mt-4" id="providers-grid">

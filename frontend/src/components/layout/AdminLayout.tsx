@@ -24,7 +24,8 @@ import {
   ExternalLink,
   MessageSquare,
   Sparkles,
-  Inbox
+  Inbox,
+  ShoppingBag
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Logo from "../Logo";
@@ -203,6 +204,7 @@ export default function AdminLayout() {
     { label: "Support Inbox", path: "/admin/support", icon: Inbox, badge: supportUnreadCount },
     { label: "Contact Inbox", path: "/admin/contact", icon: MessageSquare, badge: contactUnreadCount },
     { label: "Requests", path: "/admin/requests", icon: ClipboardList },
+    { label: "Shop", path: "/admin/shop", icon: ShoppingBag },
     { label: "Users", path: "/admin/users", icon: Users },
     { label: "Providers", path: "/admin/providers", icon: UserCheck },
     { label: "Settings", path: "/admin/settings", icon: Settings },

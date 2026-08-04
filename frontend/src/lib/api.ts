@@ -6,13 +6,19 @@
 import axios from "axios";
 
 // Central Axios Client
-const API_BASE = (import.meta.env.VITE_API_URL as string) || "";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || "";
+const isDev = import.meta.env.DEV;
 
-// During local development, prefer the active backend dev server if VITE_API_URL isn't set.
-const DEV_FALLBACK = (typeof window !== "undefined" && window.location.hostname === "localhost") ? "http://localhost:3012" : "";
+// In local development, always prefer the Vite proxy so auth and other API requests
+// use the active backend without depending on a mismatched hard-coded port.
+const baseURL = isDev ? "/api" : (API_BASE ? `${API_BASE}/api` : "/api");
+
+if (isDev) {
+  console.log("API client baseURL:", baseURL);
+}
 
 export const api = axios.create({
-  baseURL: API_BASE ? `${API_BASE}/api` : (DEV_FALLBACK ? `${DEV_FALLBACK}/api` : "/api"),
+  baseURL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -23,6 +29,9 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("cl_token");
+    if (isDev) {
+      console.log("Attaching token:", !!token, "to", config.url);
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,10 +42,21 @@ api.interceptors.request.use(
   }
 );
 
-// Intercept 401 responses to auto-logout
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (isDev) {
+      const detail = error.response?.data?.error?.detail || error.response?.data?.error || error.message || "Unknown error";
+      console.error(
+        "API Error:",
+        error.config?.method?.toUpperCase(),
+        error.config?.url,
+        "→",
+        error.response?.status,
+        detail
+      );
+    }
+
     if (error.response && error.response.status === 401) {
       import("./store").then(({ useAuthStore }) => {
         useAuthStore.getState().logout();
@@ -46,6 +66,7 @@ api.interceptors.response.use(
       });
       window.location.replace("/login");
     }
+
     return Promise.reject(error);
   }
 );

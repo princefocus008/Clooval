@@ -7,7 +7,8 @@ import React, { useEffect } from "react";
 import { Outlet, Link, useLocation, Navigate } from "react-router-dom";
 import { useAuthStore } from "../../lib/store";
 import { useNotifications } from "../../hooks/queries";
-import { Home, ClipboardList, Bell, User as UserIcon, LogOut } from "lucide-react";
+import { useCart } from "../../features/shop/hooks/useShop";
+import { Home, ClipboardList, Bell, User as UserIcon, LogOut, ShoppingBag } from "lucide-react";
 import Logo from "../Logo";
 import GlobalSearch from "../GlobalSearch";
 import LoadingSpinner from "../ui/LoadingSpinner";
@@ -32,7 +33,9 @@ export default function StudentLayout() {
 
   // Hook to fetch and poll notifications so we get count badge
   const { data: notifications } = useNotifications();
+  const { data: cart } = useCart();
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
+  const cartItemCount = cart?.item_count || 0;
 
   const [pullY, setPullY] = React.useState(0);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
@@ -90,14 +93,21 @@ export default function StudentLayout() {
     return <Navigate to="/admin" replace />;
   }
 
-    // Use relative paths under the student base `/app` so links resolve correctly
-    const basePath = "/app";
   const navItems = [
-      { label: "Home", path: "", icon: Home },
-      { label: "My Requests", path: "requests", icon: ClipboardList },
-      { label: "Notifications", path: "notifications", icon: Bell, badge: unreadCount },
-      { label: "Profile", path: "profile", icon: UserIcon },
+      { label: "Home", path: "/app", icon: Home },
+      { label: "Requests", path: "/app/requests", icon: ClipboardList },
+      { label: "Shop", path: "/app/shop", icon: ShoppingBag, badge: cartItemCount },
+      { label: "Notifications", path: "/app/notifications", icon: Bell, badge: unreadCount },
+      { label: "Profile", path: "/app/profile", icon: UserIcon },
   ];
+
+  const isNavItemActive = (itemPath: string) => {
+    if (itemPath === "/app") {
+      return location.pathname === "/app";
+    }
+
+    return location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`);
+  };
 
   return (
     <div className="min-h-screen bg-white text-[#111111] flex flex-col md:flex-row">
@@ -109,8 +119,7 @@ export default function StudentLayout() {
         </div>
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
-              const fullPath = `${basePath}${item.path ? `/${item.path}` : ""}`;
-              const isActive = location.pathname === fullPath || location.pathname.startsWith(fullPath + "/");
+            const isActive = isNavItemActive(item.path);
             const Icon = item.icon;
             return (
               <Link
@@ -181,7 +190,7 @@ export default function StudentLayout() {
           </div>
 
           <div className="flex-1 max-w-sm">
-            {location.pathname.startsWith(`${basePath}/requests`) && <GlobalSearch />}
+            {location.pathname.startsWith("/app/requests") && <GlobalSearch />}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -191,7 +200,7 @@ export default function StudentLayout() {
           </div>
         </header>
 
-        <div className="max-w-[720px] w-full mx-auto p-4 md:p-8 flex-1">
+        <div className={location.pathname.startsWith("/app/shop") ? "w-full flex-1" : "max-w-[720px] w-full mx-auto p-4 md:p-8 flex-1"}>
           {isRouteChanging ? (
             <div className="py-20 flex justify-center items-center animate-pulse">
               <LoadingSpinner size="lg" />
@@ -232,13 +241,12 @@ export default function StudentLayout() {
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-[#E5E5E3] flex items-center justify-around z-25"
+        className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-[#E5E5E3] grid grid-cols-5 z-25"
         role="navigation"
         aria-label="Mobile menu"
       >
         {navItems.map((item) => {
-            const fullPath = `${basePath}${item.path ? `/${item.path}` : ""}`;
-            const isActive = location.pathname === fullPath || location.pathname.startsWith(fullPath + "/");
+          const isActive = isNavItemActive(item.path);
           const Icon = item.icon;
           return (
             <Link
@@ -251,8 +259,8 @@ export default function StudentLayout() {
               <div className="relative">
                 <Icon className="w-5 h-5" />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-[#111111] text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded min-w-[14px] text-center">
-                    {item.badge}
+                  <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#111111] text-[9px] font-semibold text-white">
+                    {item.badge > 9 ? "9+" : item.badge}
                   </span>
                 )}
               </div>
