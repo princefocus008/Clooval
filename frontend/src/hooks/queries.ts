@@ -275,8 +275,9 @@ export function useAdminSupportMessages() {
       return res.data;
     },
     enabled: isAuthenticated,
-    staleTime: 2000,
-    refetchInterval: 5000,
+    staleTime: 30000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -311,8 +312,9 @@ export function useAdminContactMessages() {
       return res.data;
     },
     enabled: isAuthenticated,
-    staleTime: 2000,
-    refetchInterval: 5000,
+    staleTime: 30000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -347,8 +349,9 @@ export function useAdminUsers() {
       return res.data;
     },
     enabled: isAuthenticated,
-    staleTime: 2000,
-    refetchInterval: 4000, // Keep admin user management dashboard in sync
+    staleTime: 30000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -363,8 +366,9 @@ export function useAdminActivities() {
       return res.data;
     },
     enabled: isAuthenticated,
-    staleTime: 2000,
-    refetchInterval: 4000, // Real-time notification feed polls every 4 seconds
+    staleTime: 30000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 }
 

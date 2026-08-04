@@ -52,9 +52,9 @@ if (!DATABASE_URL) {
 // Set up PostgreSQL client pool
 const poolConfig: any = {
   connectionString: DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  max: 20,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
 };
 
 if (DATABASE_URL.includes("sslmode=require") || DATABASE_URL.includes("ssl=true")) {
